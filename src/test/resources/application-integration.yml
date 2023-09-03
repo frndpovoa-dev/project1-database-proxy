@@ -1,4 +1,6 @@
 app:
+  grpc:
+    port: 9090
   ignite:
     addresses:
       - ${IGNITE_HOST}:${IGNITE_PORT}

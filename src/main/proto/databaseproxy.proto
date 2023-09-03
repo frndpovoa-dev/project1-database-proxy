@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "dev.frndpovoa.project1.databaseproxy.proto";
+option java_outer_classname = "DatabaseProxyProto";
+option objc_class_prefix = "DP";
+
+package dev.frndpovoa.project1.databaseproxy.proto;
+
+service DatabaseProxy {
+  rpc beginTransaction (TransactionRequest) returns (Transaction) {}
+}
+
+message TransactionRequest {
+  int64 timeout = 2;
+}
+
+message Transaction {
+  string id = 1;
+  Status status = 3;
+
+  enum Status {
+    NOT_STARTED = 0;
+    ACTIVE = 1;
+    COMMITTED = 2;
+    ROLLED_BACK = 3;
+  }
+}
