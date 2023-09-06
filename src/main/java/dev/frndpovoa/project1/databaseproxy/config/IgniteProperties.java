@@ -11,4 +11,5 @@ import java.util.List;
 @ConfigurationProperties(prefix = "app.ignite")
 public class IgniteProperties {
     private List<String> addresses;
+    private int timeout;
 }

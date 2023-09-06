@@ -4,3 +4,4 @@ app:
   ignite:
     addresses:
       - ${IGNITE_HOST}:${IGNITE_PORT}
+    timeout: 10000

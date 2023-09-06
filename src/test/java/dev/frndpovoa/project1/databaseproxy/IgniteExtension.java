@@ -14,11 +14,11 @@ public class IgniteExtension implements BeforeAllCallback {
     public void beforeAll(ExtensionContext context) throws Exception {
         int port = 10800;
         ignite = new GenericContainer(DockerImageName
-                .parse("gridgain/community")
-                .withTag(context.getConfigurationParameter("gridgain.version").orElse("latest"))
+                .parse("apacheignite/ignite")
+                .withTag(context.getConfigurationParameter("ignite.version").orElse("latest"))
         ) {
         }
-                .withSharedMemorySize(1024 * 1024 * 1024 * 2L)
+                .withSharedMemorySize(1024 * 1024 * 512L)
                 .withExposedPorts(port)
         ;
 

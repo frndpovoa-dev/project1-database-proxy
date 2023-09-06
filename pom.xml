@@ -17,11 +17,12 @@
         <com.google.protobuf_protobuf-java.version>3.22.3</com.google.protobuf_protobuf-java.version>
         <io.grpc_grpc.version>1.57.2</io.grpc_grpc.version>
         <org.apache.ignite_ignite.version>2.15.0</org.apache.ignite_ignite.version>
+        <org.apache.ignite_ignite-spring-boot-thin-client-autoconfigure-ext.version>1.0.0</org.apache.ignite_ignite-spring-boot-thin-client-autoconfigure-ext.version>
         <org.awaitility_awaitility.version>4.2.0</org.awaitility_awaitility.version>
         <org.mapstruct_mapstruct.version>1.5.5.Final</org.mapstruct_mapstruct.version>
         <org.projectlombok_lombok.version>1.18.28</org.projectlombok_lombok.version>
         <org.testcontainers_testcontainers-java.version>1.18.3</org.testcontainers_testcontainers-java.version>
-        <spring-boot.version>3.1.3</spring-boot.version>
+        <spring-boot.version>2.7.15</spring-boot.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -90,11 +91,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>javax.annotation</groupId>
-            <artifactId>javax.annotation-api</artifactId>
-            <version>1.3.2</version>
-        </dependency>
-        <dependency>
             <groupId>org.apache.ignite</groupId>
             <artifactId>ignite-core</artifactId>
             <version>${org.apache.ignite_ignite.version}</version>
@@ -107,7 +103,7 @@
         <dependency>
             <groupId>org.apache.ignite</groupId>
             <artifactId>ignite-spring-boot-thin-client-autoconfigure-ext</artifactId>
-            <version>1.0.0</version>
+            <version>${org.apache.ignite_ignite-spring-boot-thin-client-autoconfigure-ext.version}</version>
         </dependency>
         <dependency>
             <groupId>org.awaitility</groupId>
@@ -133,9 +129,17 @@
             <optional>true</optional>
         </dependency>
         <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jta-atomikos</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

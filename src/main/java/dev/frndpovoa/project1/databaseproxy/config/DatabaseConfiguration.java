@@ -7,10 +7,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class DatabaseConfiguration {
     @Bean
-    public ClientConfiguration igniteClientConfiguration(
+    public ClientConfiguration clientConfiguration(
             IgniteProperties igniteProperties
     ) {
-        return new ClientConfiguration()
-                .setAddresses(igniteProperties.getAddresses().toArray(new String[0]));
+        ClientConfiguration cfg = new ClientConfiguration();
+        cfg.setAddresses(igniteProperties.getAddresses().toArray(new String[0]));
+        cfg.setTimeout(igniteProperties.getTimeout());
+        return cfg;
     }
 }

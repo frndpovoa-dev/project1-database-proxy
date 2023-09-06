@@ -8,11 +8,22 @@ option objc_class_prefix = "DP";
 package dev.frndpovoa.project1.databaseproxy.proto;
 
 service DatabaseProxy {
-  rpc beginTransaction (TransactionRequest) returns (Transaction) {}
+  rpc BeginTransaction (BeginTransactionConfig) returns (Transaction) {}
+  rpc CommitTransaction (Transaction) returns (Transaction) {}
+  rpc RollbackTransaction (Transaction) returns (Transaction) {}
+  rpc Execute (ExecuteConfig) returns (ExecuteResult) {}
+  rpc Query (QueryConfig) returns (QueryResult) {}
+  rpc Next (NextConfig) returns (QueryResult) {}
+  rpc CloseConnection (Empty) returns (Empty) {}
+  rpc CloseStatement (Empty) returns (Empty) {}
+  rpc CloseRows (Empty) returns (Empty) {}
 }
 
-message TransactionRequest {
-  int64 timeout = 2;
+message Empty {
+}
+
+message BeginTransactionConfig {
+  int32 transactionTimeout = 2;
 }
 
 message Transaction {
@@ -25,4 +36,75 @@ message Transaction {
     COMMITTED = 2;
     ROLLED_BACK = 3;
   }
+}
+
+message ExecuteConfig {
+  Transaction transaction = 1;
+  string query = 2;
+  repeated Value args = 3;
+}
+
+message QueryConfig {
+  Transaction transaction = 1;
+  string query = 2;
+  repeated Value args = 3;
+}
+
+message NextConfig {
+  Transaction transaction = 1;
+}
+
+message ExecuteResult {
+  Transaction transaction = 1;
+  int64 lastInsertId = 2;
+  int64 rowsAffected = 3;
+}
+
+message QueryResult {
+  Transaction transaction = 1;
+  repeated string columns = 2;
+  repeated Value values = 3;
+  bool eof = 4;
+}
+
+message Value {
+  ValueCode code = 1; // Code identifying the type of the value, see below.
+  bytes data = 2;     // Serialized value, maps to one of the ValueXXX messages.
+}
+
+enum ValueCode {
+  INT64 = 0;
+  FLOAT64 = 1;
+  BOOL = 2;
+  BYTES = 3;
+  STRING = 4;
+  TIME = 5;
+  NULL = 6;
+}
+
+message ValueInt64 {
+  int64 value = 1;
+}
+
+message ValueFloat64 {
+  double value = 1;
+}
+
+message ValueBool {
+  bool value = 1;
+}
+
+message ValueBytes {
+  bytes value = 1;
+}
+
+message ValueString {
+  string value = 1;
+}
+
+message ValueTime {
+  int64 value = 1;
+}
+
+message ValueNull {
 }
