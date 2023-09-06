@@ -4,12 +4,9 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.util.List;
-
 @Getter
 @Setter
 @ConfigurationProperties(prefix = "app.ignite")
 public class IgniteProperties {
-    private List<String> addresses;
-    private int timeout;
+    private String url;
 }

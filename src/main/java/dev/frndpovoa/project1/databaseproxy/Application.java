@@ -10,14 +10,12 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.event.EventListener;
-import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import java.util.Optional;
 
 @Slf4j
 @RequiredArgsConstructor
 @SpringBootApplication
-@EnableTransactionManagement
 @ComponentScan(basePackages = {"dev.frndpovoa.project1.databaseproxy"})
 @ConfigurationPropertiesScan(basePackages = {"dev.frndpovoa.project1.databaseproxy"})
 public class Application {

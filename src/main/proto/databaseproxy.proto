@@ -23,12 +23,11 @@ message Empty {
 }
 
 message BeginTransactionConfig {
-  int32 transactionTimeout = 2;
 }
 
 message Transaction {
   string id = 1;
-  Status status = 3;
+  Status status = 2;
 
   enum Status {
     NOT_STARTED = 0;
@@ -55,21 +54,20 @@ message NextConfig {
 }
 
 message ExecuteResult {
-  Transaction transaction = 1;
-  int64 lastInsertId = 2;
-  int64 rowsAffected = 3;
+  int32 rowsAffected = 1;
 }
 
 message QueryResult {
-  Transaction transaction = 1;
-  repeated string columns = 2;
-  repeated Value values = 3;
-  bool eof = 4;
+  repeated Row rows = 1;
+}
+
+message Row {
+  repeated Value cols = 1;
 }
 
 message Value {
-  ValueCode code = 1; // Code identifying the type of the value, see below.
-  bytes data = 2;     // Serialized value, maps to one of the ValueXXX messages.
+  ValueCode code = 1;
+  bytes data = 2;
 }
 
 enum ValueCode {
@@ -92,10 +90,6 @@ message ValueFloat64 {
 
 message ValueBool {
   bool value = 1;
-}
-
-message ValueBytes {
-  bytes value = 1;
 }
 
 message ValueString {
