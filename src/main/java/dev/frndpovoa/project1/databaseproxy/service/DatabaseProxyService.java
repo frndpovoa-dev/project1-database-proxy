@@ -10,26 +10,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.sql.*;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
-
-import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBase {
+    private final Map<String, TransactionalOperation> transactionalOperationMap = new ConcurrentHashMap<>();
     private final UniqueIdGenerator uniqueIdGenerator;
     private final IgniteProperties igniteProperties;
-    private final Map<String, TransactionalOperation> transactionalOperationMap = new ConcurrentHashMap<>();
 
     @Override
     public void beginTransaction(BeginTransactionConfig request, StreamObserver<Transaction> responseObserver) {
@@ -39,16 +36,20 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                     .setStatus(Transaction.Status.ACTIVE)
                     .build();
 
-            transactionalOperationMap.put(transaction.getId(), TransactionalOperation.builder()
+            TransactionalOperation transactionalOperation = TransactionalOperation.builder()
                     .igniteProperties(igniteProperties)
-                    .transaction(transaction)
-                    .build()
-                    .beginTransaction(request));
+                    .build();
+
+            transactionalOperation
+                    .openConnection()
+                    .beginTransaction();
+
+            transactionalOperationMap.put(transaction.getId(), transactionalOperation);
 
             responseObserver.onNext(transaction);
             responseObserver.onCompleted();
-        } catch (Exception e) {
-            responseObserver.onError(e);
+        } catch (Throwable t) {
+            responseObserver.onError(t);
         }
     }
 
@@ -66,8 +67,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
 
             responseObserver.onNext(transaction);
             responseObserver.onCompleted();
-        } catch (Exception e) {
-            responseObserver.onError(e);
+        } catch (Throwable t) {
+            responseObserver.onError(t);
         }
     }
 
@@ -85,8 +86,37 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
 
             responseObserver.onNext(transaction);
             responseObserver.onCompleted();
-        } catch (Exception e) {
-            responseObserver.onError(e);
+        } catch (Throwable t) {
+            responseObserver.onError(t);
+        }
+    }
+
+    @Override
+    public void ddl(DdlConfig config, StreamObserver<DdlResult> responseObserver) {
+        try {
+            TransactionalOperation transactionalOperation = TransactionalOperation.builder()
+                    .igniteProperties(igniteProperties)
+                    .build();
+
+            ExecuteConfig executeConfig = ExecuteConfig.newBuilder()
+                    .setQuery(config.getQuery())
+                    .setTimeout(config.getTimeout())
+                    .build();
+
+            transactionalOperation.openConnection();
+
+            ExecuteResult executeResult = transactionalOperation
+                    .execute(executeConfig);
+
+            transactionalOperation.closeConnection();
+
+            DdlResult result = DdlResult.newBuilder()
+                    .build();
+
+            responseObserver.onNext(result);
+            responseObserver.onCompleted();
+        } catch (Throwable t) {
+            responseObserver.onError(t);
         }
     }
 
@@ -97,8 +127,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                     .execute(config);
             responseObserver.onNext(result);
             responseObserver.onCompleted();
-        } catch (Exception e) {
-            responseObserver.onError(e);
+        } catch (Throwable t) {
+            responseObserver.onError(t);
         }
     }
 
@@ -109,8 +139,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                     .query(config);
             responseObserver.onNext(result);
             responseObserver.onCompleted();
-        } catch (Exception e) {
-            responseObserver.onError(e);
+        } catch (Throwable t) {
+            responseObserver.onError(t);
         }
     }
 
@@ -137,61 +167,107 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
 
 @FunctionalInterface
 interface DoInTransaction {
-    void doInTransaction(Connection conn, AtomicBoolean shouldContinue) throws SQLException;
+    void doInTransaction(Connection conn, AtomicBoolean shouldContinue);
 }
 
 @Slf4j
 @Builder
 class TransactionalOperation {
     private final AtomicBoolean shouldContinue = new AtomicBoolean(true);
-    private final Queue<DoInTransaction> taskQueue = new ConcurrentLinkedQueue<>();
+    private final LinkedBlockingQueue<DoInTransaction> taskQueue = new LinkedBlockingQueue<>();
     private IgniteProperties igniteProperties;
-    private Transaction transaction;
 
-    TransactionalOperation beginTransaction(BeginTransactionConfig config) {
+    TransactionalOperation openConnection() {
+        CompletableFuture<Boolean> connOpened = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {
             try (Connection conn = DriverManager.getConnection(igniteProperties.getUrl())) {
+                connOpened.complete(true);
                 while (shouldContinue.get()) {
-                    while (!taskQueue.isEmpty()) {
-                        DoInTransaction callback = taskQueue.poll();
+                    DoInTransaction callback = taskQueue.poll(1, TimeUnit.SECONDS);
+                    if (callback != null) {
                         callback.doInTransaction(conn, shouldContinue);
                     }
-                    sleepUninterruptibly(Duration.ofSeconds(1));
                 }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
+            } catch (Throwable t) {
+                log.error(t.getMessage(), t);
+                connOpened.completeExceptionally(t);
             }
         });
+        connOpened.join();
         return this;
     }
 
-    void commitTransaction() {
+    void closeConnection() {
         CompletableFuture<Void> future = new CompletableFuture<>();
         taskQueue.add((conn, shouldContinue) -> {
-            conn.commit();
-            shouldContinue.set(false);
-            future.complete(null);
+            try {
+                shouldContinue.set(false);
+                future.complete(null);
+            } catch (Throwable t) {
+                log.error(t.getMessage(), t);
+                future.completeExceptionally(t);
+            }
         });
         future.join();
     }
 
-    void rollbackTransaction() {
-        CompletableFuture<Void> future = new CompletableFuture<>();
+    boolean beginTransaction() {
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
         taskQueue.add((conn, shouldContinue) -> {
-            conn.rollback();
-            shouldContinue.set(false);
-            future.complete(null);
+            try {
+                conn.setAutoCommit(false);
+                future.complete(true);
+            } catch (Throwable t) {
+                log.error(t.getMessage(), t);
+                future.completeExceptionally(t);
+            }
         });
-        future.join();
+        return future.join();
+    }
+
+    boolean commitTransaction() {
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        taskQueue.add((conn, shouldContinue) -> {
+            try {
+                conn.commit();
+                shouldContinue.set(false);
+                future.complete(true);
+            } catch (Throwable t) {
+                log.error(t.getMessage(), t);
+                future.completeExceptionally(t);
+            }
+        });
+        return future.join();
+    }
+
+    boolean rollbackTransaction() {
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        taskQueue.add((conn, shouldContinue) -> {
+            try {
+                conn.rollback();
+                shouldContinue.set(false);
+                future.complete(true);
+            } catch (Throwable t) {
+                log.error(t.getMessage(), t);
+                future.completeExceptionally(t);
+            }
+        });
+        return future.join();
     }
 
     public ExecuteResult execute(ExecuteConfig config) {
         CompletableFuture<Integer> future = new CompletableFuture<>();
         taskQueue.add((conn, shouldContinue) -> {
             try (PreparedStatement stmt = conn.prepareStatement(config.getQuery())) {
+                stmt.setQueryTimeout(config.getTimeout());
+
                 IntStream.range(0, config.getArgsCount())
                         .forEach(i -> setSqlArg(stmt, i + 1, config.getArgs(i)));
+
                 future.complete(stmt.executeUpdate());
+            } catch (Throwable t) {
+                log.error(t.getMessage(), t);
+                future.completeExceptionally(t);
             }
         });
         return ExecuteResult.newBuilder()
@@ -203,6 +279,8 @@ class TransactionalOperation {
         CompletableFuture<List<Row>> future = new CompletableFuture<>();
         taskQueue.add((conn, shouldContinue) -> {
             try (PreparedStatement stmt = conn.prepareStatement(config.getQuery())) {
+                stmt.setQueryTimeout(config.getTimeout());
+
                 IntStream.range(0, config.getArgsCount())
                         .forEach(i -> setSqlArg(stmt, i + 1, config.getArgs(i)));
 
@@ -219,6 +297,9 @@ class TransactionalOperation {
                 }
 
                 future.complete(results);
+            } catch (Throwable t) {
+                log.error(t.getMessage(), t);
+                future.completeExceptionally(t);
             }
         });
         return QueryResult.newBuilder()
