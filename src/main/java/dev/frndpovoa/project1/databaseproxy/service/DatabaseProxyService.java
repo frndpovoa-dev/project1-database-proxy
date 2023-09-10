@@ -5,14 +5,16 @@ import dev.frndpovoa.project1.databaseproxy.config.IgniteProperties;
 import dev.frndpovoa.project1.databaseproxy.proto.*;
 import io.grpc.stub.StreamObserver;
 import lombok.Builder;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -24,46 +26,54 @@ import java.util.stream.IntStream;
 @Service
 @RequiredArgsConstructor
 public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBase {
-    private final Map<String, TransactionalOperation> transactionalOperationMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, DatabaseOperation> transactionalOperationMap = new ConcurrentHashMap<>();
     private final UniqueIdGenerator uniqueIdGenerator;
     private final IgniteProperties igniteProperties;
 
     @Override
     public void beginTransaction(BeginTransactionConfig request, StreamObserver<Transaction> responseObserver) {
+        Transaction transaction = Transaction.newBuilder()
+                .setId(uniqueIdGenerator.generate(Transaction.class))
+                .setStatus(Transaction.Status.ACTIVE)
+                .build();
+
+        DatabaseOperation databaseOperation = DatabaseOperation.builder()
+                .igniteProperties(igniteProperties)
+                .transaction(transaction)
+                .build();
+
         try {
-            Transaction transaction = Transaction.newBuilder()
-                    .setId(uniqueIdGenerator.generate(DatabaseProxyService.class.getName()))
-                    .setStatus(Transaction.Status.ACTIVE)
-                    .build();
-
-            TransactionalOperation transactionalOperation = TransactionalOperation.builder()
-                    .igniteProperties(igniteProperties)
-                    .build();
-
-            transactionalOperation
+            databaseOperation
                     .openConnection()
                     .beginTransaction();
-
-            transactionalOperationMap.put(transaction.getId(), transactionalOperation);
 
             responseObserver.onNext(transaction);
             responseObserver.onCompleted();
         } catch (Throwable t) {
             responseObserver.onError(t);
+        } finally {
+            transactionalOperationMap.put(transaction.getId(), databaseOperation);
         }
     }
 
     @Override
     public void commitTransaction(Transaction transaction, StreamObserver<Transaction> responseObserver) {
         try {
-            transactionalOperationMap.get(transaction.getId())
+            DatabaseOperation databaseOperation = getTransactionalOperation(transaction);
+
+            if (databaseOperation.getTransaction().getStatus() != Transaction.Status.ACTIVE) {
+                responseObserver.onError(new IllegalArgumentException("Transaction is not active"));
+                return;
+            }
+
+            databaseOperation
                     .commitTransaction();
 
-            transactionalOperationMap.remove(transaction.getId());
-
-            transaction = transaction.toBuilder()
+            transaction = databaseOperation.getTransaction().toBuilder()
                     .setStatus(Transaction.Status.COMMITTED)
                     .build();
+
+            databaseOperation.setTransaction(transaction);
 
             responseObserver.onNext(transaction);
             responseObserver.onCompleted();
@@ -75,14 +85,21 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void rollbackTransaction(Transaction transaction, StreamObserver<Transaction> responseObserver) {
         try {
-            transactionalOperationMap.get(transaction.getId())
+            DatabaseOperation databaseOperation = getTransactionalOperation(transaction);
+
+            if (databaseOperation.getTransaction().getStatus() != Transaction.Status.ACTIVE) {
+                responseObserver.onError(new IllegalArgumentException("Transaction is not active"));
+                return;
+            }
+
+            databaseOperation
                     .rollbackTransaction();
 
-            transactionalOperationMap.remove(transaction.getId());
-
-            transaction = transaction.toBuilder()
+            transaction = databaseOperation.getTransaction().toBuilder()
                     .setStatus(Transaction.Status.ROLLED_BACK)
                     .build();
+
+            databaseOperation.setTransaction(transaction);
 
             responseObserver.onNext(transaction);
             responseObserver.onCompleted();
@@ -94,8 +111,9 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void ddl(DdlConfig config, StreamObserver<DdlResult> responseObserver) {
         try {
-            TransactionalOperation transactionalOperation = TransactionalOperation.builder()
+            DatabaseOperation databaseOperation = DatabaseOperation.builder()
                     .igniteProperties(igniteProperties)
+                    .transaction(null)
                     .build();
 
             ExecuteConfig executeConfig = ExecuteConfig.newBuilder()
@@ -103,12 +121,16 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                     .setTimeout(config.getTimeout())
                     .build();
 
-            transactionalOperation.openConnection();
+            try {
+                databaseOperation
+                        .openConnection();
 
-            ExecuteResult executeResult = transactionalOperation
-                    .execute(executeConfig);
-
-            transactionalOperation.closeConnection();
+                ExecuteResult ignored = databaseOperation
+                        .execute(executeConfig);
+            } finally {
+                databaseOperation
+                        .closeConnection();
+            }
 
             DdlResult result = DdlResult.newBuilder()
                     .build();
@@ -123,7 +145,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void execute(ExecuteConfig config, StreamObserver<ExecuteResult> responseObserver) {
         try {
-            ExecuteResult result = transactionalOperationMap.get(config.getTransaction().getId())
+            ExecuteResult result = getTransactionalOperation(config.getTransaction())
                     .execute(config);
             responseObserver.onNext(result);
             responseObserver.onCompleted();
@@ -135,7 +157,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void query(QueryConfig config, StreamObserver<QueryResult> responseObserver) {
         try {
-            QueryResult result = transactionalOperationMap.get(config.getTransaction().getId())
+            QueryResult result = getTransactionalOperation(config.getTransaction())
                     .query(config);
             responseObserver.onNext(result);
             responseObserver.onCompleted();
@@ -163,6 +185,11 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     public void closeRows(Empty request, StreamObserver<Empty> responseObserver) {
         responseObserver.onCompleted();
     }
+
+    DatabaseOperation getTransactionalOperation(Transaction transaction) {
+        return Optional.ofNullable(transactionalOperationMap.get(transaction.getId()))
+                .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
+    }
 }
 
 @FunctionalInterface
@@ -172,12 +199,15 @@ interface DoInTransaction {
 
 @Slf4j
 @Builder
-class TransactionalOperation {
-    private final AtomicBoolean shouldContinue = new AtomicBoolean(true);
+class DatabaseOperation {
     private final LinkedBlockingQueue<DoInTransaction> taskQueue = new LinkedBlockingQueue<>();
+    private final AtomicBoolean shouldContinue = new AtomicBoolean(true);
     private IgniteProperties igniteProperties;
+    @Getter
+    @Setter
+    private Transaction transaction;
 
-    TransactionalOperation openConnection() {
+    DatabaseOperation openConnection() {
         CompletableFuture<Boolean> connOpened = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {
             try (Connection conn = DriverManager.getConnection(igniteProperties.getUrl())) {

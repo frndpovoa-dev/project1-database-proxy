@@ -38,9 +38,9 @@ public class UniqueIdGenerator {
                 }
             });
 
-    public String generate(@NonNull String groupName) {
+    public String generate(@NonNull Class<?> clazz) {
         return UUID.randomUUID().toString().replaceAll("-", "")
                 + dateTimeFormatter.format(OffsetDateTime.now())
-                + hashingCache.getUnchecked(groupName);
+                + hashingCache.getUnchecked(clazz.getName());
     }
 }
