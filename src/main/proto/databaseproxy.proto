@@ -13,7 +13,9 @@ service DatabaseProxy {
   rpc RollbackTransaction (Transaction) returns (Transaction) {}
   rpc Ddl (DdlConfig) returns (DdlResult) {}
   rpc Execute (ExecuteConfig) returns (ExecuteResult) {}
+  rpc ExecuteTx (ExecuteTxConfig) returns (ExecuteResult) {}
   rpc Query (QueryConfig) returns (QueryResult) {}
+  rpc QueryTx (QueryTxConfig) returns (QueryResult) {}
   rpc Next (NextConfig) returns (QueryResult) {}
   rpc CloseConnection (Empty) returns (Empty) {}
   rpc CloseStatement (Empty) returns (Empty) {}
@@ -25,6 +27,7 @@ message Empty {
 
 message BeginTransactionConfig {
   int32 timeout = 1;
+  bool readOnly = 2;
 }
 
 message Transaction {
@@ -46,17 +49,25 @@ message DdlConfig {
 }
 
 message ExecuteConfig {
+  string query = 1;
+  repeated Value args = 2;
+  int32 timeout = 3;
+}
+
+message ExecuteTxConfig {
   Transaction transaction = 1;
-  string query = 2;
-  repeated Value args = 3;
-  int32 timeout = 4;
+  ExecuteConfig executeConfig = 2;
 }
 
 message QueryConfig {
+  string query = 1;
+  repeated Value args = 2;
+  int32 timeout = 3;
+}
+
+message QueryTxConfig {
   Transaction transaction = 1;
-  string query = 2;
-  repeated Value args = 3;
-  int32 timeout = 4;
+  QueryConfig queryConfig = 2;
 }
 
 message NextConfig {

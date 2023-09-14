@@ -89,21 +89,23 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
         Transaction tx1 = beginTransaction(1_000);
         Transaction tx2 = beginTransaction(1_000);
 
-        execute(tx1, 1, INSERT_INTO_TEST_ID_NAME_VALUES_1_DUMMY);
-        query(tx1, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
-        query(tx2, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
+        executeTx(tx1, 1, INSERT_INTO_TEST_ID_NAME_VALUES_1_DUMMY);
+        queryTx(tx1, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
+        queryTx(tx2, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
+        query(0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
 
         commit(tx1, Transaction.Status.COMMITTED);
 
-        execute(tx2, 1, INSERT_INTO_TEST_ID_NAME_VALUES_2_FOOBAR);
-        query(tx2, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_2, RESULTS_NAME_FOOBAR);
-        query(tx2, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
+        executeTx(tx2, 1, INSERT_INTO_TEST_ID_NAME_VALUES_2_FOOBAR);
+        queryTx(tx2, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_2, RESULTS_NAME_FOOBAR);
+        queryTx(tx2, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
+        query(1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
 
         rollback(tx2);
 
         Transaction tx3 = beginTransaction(1_000);
-        query(tx3, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
-        query(tx3, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_2, null);
+        queryTx(tx3, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
+        queryTx(tx3, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_2, null);
 
         commit(tx3, Transaction.Status.COMMITTED);
     }
@@ -111,13 +113,13 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
     @Test
     void givenCreateTable_thenInsert_thenTransactionTimeout() {
         Transaction tx1 = beginTransaction(100);
-        execute(tx1, 1, INSERT_INTO_TEST_ID_NAME_VALUES_1_DUMMY);
+        executeTx(tx1, 1, INSERT_INTO_TEST_ID_NAME_VALUES_1_DUMMY);
 
         sleepUninterruptibly(Duration.ofMillis(1_000));
 
         tx1 = commit(tx1, Transaction.Status.UNKNOWN);
 
-        query(tx1, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
+        queryTx(tx1, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
     }
 
     private Transaction beginTransaction(
@@ -144,15 +146,17 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
                 .isNotNull();
     }
 
-    private void execute(
+    private void executeTx(
             Transaction transaction,
             int rowsAffected,
             String sql
     ) {
-        ExecuteResult insertResult = databaseProxyServiceClient.execute(ExecuteConfig.newBuilder()
-                .setTimeout(100)
+        ExecuteResult insertResult = databaseProxyServiceClient.executeTx(ExecuteTxConfig.newBuilder()
                 .setTransaction(transaction)
-                .setQuery(sql)
+                .setExecuteConfig(ExecuteConfig.newBuilder()
+                        .setTimeout(100)
+                        .setQuery(sql)
+                        .build())
                 .build());
         assertThat(insertResult)
                 .isNotNull()
@@ -180,16 +184,42 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
         return transaction;
     }
 
-    private void query(
+    private void queryTx(
             Transaction transaction,
             int rowsReturned,
             String sql,
             List<Value> args,
             List<Row> expectedResults
     ) {
-        QueryResult queryResult = databaseProxyServiceClient.query(QueryConfig.newBuilder()
-                .setTimeout(100)
+        QueryResult queryResult = databaseProxyServiceClient.queryTx(QueryTxConfig.newBuilder()
                 .setTransaction(transaction)
+                .setQueryConfig(QueryConfig.newBuilder()
+                        .setTimeout(1_000)
+                        .setQuery(sql)
+                        .addAllArgs(args)
+                        .build())
+                .build());
+        assertThat(queryResult)
+                .isNotNull();
+        if (rowsReturned > 0) {
+            assertThat(queryResult.getRowsList())
+                    .isNotNull()
+                    .hasSize(rowsReturned)
+                    .hasToString(expectedResults.toString());
+        } else {
+            assertThat(queryResult.getRowsList())
+                    .isEmpty();
+        }
+    }
+
+    private void query(
+            int rowsReturned,
+            String sql,
+            List<Value> args,
+            List<Row> expectedResults
+    ) {
+        QueryResult queryResult = databaseProxyServiceClient.query(QueryConfig.newBuilder()
+                .setTimeout(1_000)
                 .setQuery(sql)
                 .addAllArgs(args)
                 .build());

@@ -145,8 +145,23 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void execute(ExecuteConfig config, StreamObserver<ExecuteResult> responseObserver) {
         try {
-            ExecuteResult result = getTransactionalOperation(config.getTransaction())
-                    .execute(config);
+            DatabaseOperation databaseOperation = DatabaseOperation.builder()
+                    .igniteProperties(igniteProperties)
+                    .transaction(null)
+                    .build();
+
+            ExecuteResult result;
+            try {
+                databaseOperation
+                        .openConnection();
+
+                result = databaseOperation
+                        .execute(config);
+            } finally {
+                databaseOperation
+                        .closeConnection();
+            }
+
             responseObserver.onNext(result);
             responseObserver.onCompleted();
         } catch (Throwable t) {
@@ -157,8 +172,47 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void query(QueryConfig config, StreamObserver<QueryResult> responseObserver) {
         try {
+            DatabaseOperation databaseOperation = DatabaseOperation.builder()
+                    .igniteProperties(igniteProperties)
+                    .transaction(null)
+                    .build();
+
+            QueryResult result;
+            try {
+                databaseOperation
+                        .openConnection();
+
+                result = databaseOperation
+                        .query(config);
+            } finally {
+                databaseOperation
+                        .closeConnection();
+            }
+
+            responseObserver.onNext(result);
+            responseObserver.onCompleted();
+        } catch (Throwable t) {
+            responseObserver.onError(t);
+        }
+    }
+
+    @Override
+    public void executeTx(ExecuteTxConfig config, StreamObserver<ExecuteResult> responseObserver) {
+        try {
+            ExecuteResult result = getTransactionalOperation(config.getTransaction())
+                    .execute(config.getExecuteConfig());
+            responseObserver.onNext(result);
+            responseObserver.onCompleted();
+        } catch (Throwable t) {
+            responseObserver.onError(t);
+        }
+    }
+
+    @Override
+    public void queryTx(QueryTxConfig config, StreamObserver<QueryResult> responseObserver) {
+        try {
             QueryResult result = getTransactionalOperation(config.getTransaction())
-                    .query(config);
+                    .query(config.getQueryConfig());
             responseObserver.onNext(result);
             responseObserver.onCompleted();
         } catch (Throwable t) {
@@ -274,6 +328,7 @@ class DatabaseOperation {
         boolean accepted = taskQueue.add(params -> {
             try {
                 params.getConnection().setAutoCommit(false);
+                params.getConnection().setReadOnly(config.getReadOnly());
 
                 CompletableFuture
                         .runAsync(() -> {
