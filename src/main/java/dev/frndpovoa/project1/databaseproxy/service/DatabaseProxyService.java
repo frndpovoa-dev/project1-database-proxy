@@ -12,15 +12,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.sql.*;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
+
+import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 
 @Slf4j
 @Service
@@ -31,7 +31,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     private final IgniteProperties igniteProperties;
 
     @Override
-    public void beginTransaction(BeginTransactionConfig request, StreamObserver<Transaction> responseObserver) {
+    public void beginTransaction(BeginTransactionConfig config, StreamObserver<Transaction> responseObserver) {
         Transaction transaction = Transaction.newBuilder()
                 .setId(uniqueIdGenerator.generate(Transaction.class))
                 .setStatus(Transaction.Status.ACTIVE)
@@ -45,7 +45,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
         try {
             databaseOperation
                     .openConnection()
-                    .beginTransaction();
+                    .beginTransaction(config);
 
             responseObserver.onNext(transaction);
             responseObserver.onCompleted();
@@ -66,11 +66,11 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                 return;
             }
 
-            databaseOperation
+            boolean committed = databaseOperation
                     .commitTransaction();
 
             transaction = databaseOperation.getTransaction().toBuilder()
-                    .setStatus(Transaction.Status.COMMITTED)
+                    .setStatus(committed ? Transaction.Status.COMMITTED : Transaction.Status.UNKNOWN)
                     .build();
 
             databaseOperation.setTransaction(transaction);
@@ -92,11 +92,11 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                 return;
             }
 
-            databaseOperation
+            boolean rolledBack = databaseOperation
                     .rollbackTransaction();
 
             transaction = databaseOperation.getTransaction().toBuilder()
-                    .setStatus(Transaction.Status.ROLLED_BACK)
+                    .setStatus(rolledBack ? Transaction.Status.ROLLED_BACK : Transaction.Status.UNKNOWN)
                     .build();
 
             databaseOperation.setTransaction(transaction);
@@ -194,14 +194,30 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
 
 @FunctionalInterface
 interface DoInTransaction {
-    void doInTransaction(Connection conn, AtomicBoolean shouldContinue);
+    void doInTransaction(Params params);
+
+    @Getter
+    @Builder
+    class Params {
+        private final Connection connection;
+        private final ExecutorService sideTaskExecutor;
+        private final AtomicBoolean shouldContinue;
+    }
 }
 
 @Slf4j
 @Builder
 class DatabaseOperation {
-    private final LinkedBlockingQueue<DoInTransaction> taskQueue = new LinkedBlockingQueue<>();
     private final AtomicBoolean shouldContinue = new AtomicBoolean(true);
+    private final LinkedBlockingQueue<DoInTransaction> taskQueue = new LinkedBlockingQueue<>() {
+        @Override
+        public boolean add(DoInTransaction doInTransaction) {
+            if (!shouldContinue.get()) {
+                return false;
+            }
+            return super.add(doInTransaction);
+        }
+    };
     private IgniteProperties igniteProperties;
     @Getter
     @Setter
@@ -210,17 +226,27 @@ class DatabaseOperation {
     DatabaseOperation openConnection() {
         CompletableFuture<Boolean> connOpened = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {
-            try (Connection conn = DriverManager.getConnection(igniteProperties.getUrl())) {
+            ExecutorService sideTaskExecutor = Executors.newFixedThreadPool(2);
+            try (Connection connection = DriverManager.getConnection(igniteProperties.getUrl())) {
                 connOpened.complete(true);
+
+                DoInTransaction.Params params = DoInTransaction.Params.builder()
+                        .connection(connection)
+                        .sideTaskExecutor(sideTaskExecutor)
+                        .shouldContinue(shouldContinue)
+                        .build();
+
                 while (shouldContinue.get()) {
                     DoInTransaction callback = taskQueue.poll(1, TimeUnit.SECONDS);
                     if (callback != null) {
-                        callback.doInTransaction(conn, shouldContinue);
+                        callback.doInTransaction(params);
                     }
                 }
             } catch (Throwable t) {
                 log.error(t.getMessage(), t);
                 connOpened.completeExceptionally(t);
+            } finally {
+                sideTaskExecutor.shutdownNow();
             }
         });
         connOpened.join();
@@ -229,7 +255,7 @@ class DatabaseOperation {
 
     void closeConnection() {
         CompletableFuture<Void> future = new CompletableFuture<>();
-        taskQueue.add((conn, shouldContinue) -> {
+        boolean accepted = taskQueue.add(params -> {
             try {
                 shouldContinue.set(false);
                 future.complete(null);
@@ -238,57 +264,88 @@ class DatabaseOperation {
                 future.completeExceptionally(t);
             }
         });
-        future.join();
+        if (accepted) {
+            future.join();
+        }
     }
 
-    boolean beginTransaction() {
+    boolean beginTransaction(BeginTransactionConfig config) {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
-        taskQueue.add((conn, shouldContinue) -> {
+        boolean accepted = taskQueue.add(params -> {
             try {
-                conn.setAutoCommit(false);
+                params.getConnection().setAutoCommit(false);
+
+                CompletableFuture
+                        .runAsync(() -> {
+                            sleepUninterruptibly(Duration.ofMillis(config.getTimeout()));
+                            boolean ignored = Optional.ofNullable(params.getConnection())
+                                    .filter(this::isActive)
+                                    .flatMap(this::rollback)
+                                    .orElse(false);
+                            shouldContinue.set(false);
+                        }, params.getSideTaskExecutor());
+
                 future.complete(true);
             } catch (Throwable t) {
                 log.error(t.getMessage(), t);
                 future.completeExceptionally(t);
             }
         });
-        return future.join();
+        if (accepted) {
+            return future.join();
+        } else {
+            return false;
+        }
     }
 
     boolean commitTransaction() {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
-        taskQueue.add((conn, shouldContinue) -> {
+        boolean accepted = taskQueue.add(params -> {
             try {
-                conn.commit();
+                boolean result = Optional.ofNullable(params.getConnection())
+                        .filter(this::isActive)
+                        .flatMap(this::commit)
+                        .orElse(false);
                 shouldContinue.set(false);
-                future.complete(true);
+                future.complete(result);
             } catch (Throwable t) {
                 log.error(t.getMessage(), t);
                 future.completeExceptionally(t);
             }
         });
-        return future.join();
+        if (accepted) {
+            return future.join();
+        } else {
+            return false;
+        }
     }
 
     boolean rollbackTransaction() {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
-        taskQueue.add((conn, shouldContinue) -> {
+        boolean accepted = taskQueue.add(params -> {
             try {
-                conn.rollback();
+                boolean result = Optional.ofNullable(params.getConnection())
+                        .filter(this::isActive)
+                        .flatMap(this::rollback)
+                        .orElse(false);
                 shouldContinue.set(false);
-                future.complete(true);
+                future.complete(result);
             } catch (Throwable t) {
                 log.error(t.getMessage(), t);
                 future.completeExceptionally(t);
             }
         });
-        return future.join();
+        if (accepted) {
+            return future.join();
+        } else {
+            return false;
+        }
     }
 
     public ExecuteResult execute(ExecuteConfig config) {
         CompletableFuture<Integer> future = new CompletableFuture<>();
-        taskQueue.add((conn, shouldContinue) -> {
-            try (PreparedStatement stmt = conn.prepareStatement(config.getQuery())) {
+        boolean accepted = taskQueue.add(params -> {
+            try (PreparedStatement stmt = params.getConnection().prepareStatement(config.getQuery())) {
                 stmt.setQueryTimeout(config.getTimeout());
 
                 IntStream.range(0, config.getArgsCount())
@@ -300,15 +357,20 @@ class DatabaseOperation {
                 future.completeExceptionally(t);
             }
         });
-        return ExecuteResult.newBuilder()
-                .setRowsAffected(future.join())
-                .build();
+        if (accepted) {
+            return ExecuteResult.newBuilder()
+                    .setRowsAffected(future.join())
+                    .build();
+        } else {
+            return ExecuteResult.newBuilder()
+                    .build();
+        }
     }
 
     public QueryResult query(QueryConfig config) {
         CompletableFuture<List<Row>> future = new CompletableFuture<>();
-        taskQueue.add((conn, shouldContinue) -> {
-            try (PreparedStatement stmt = conn.prepareStatement(config.getQuery())) {
+        boolean accepted = taskQueue.add(params -> {
+            try (PreparedStatement stmt = params.getConnection().prepareStatement(config.getQuery())) {
                 stmt.setQueryTimeout(config.getTimeout());
 
                 IntStream.range(0, config.getArgsCount())
@@ -332,9 +394,51 @@ class DatabaseOperation {
                 future.completeExceptionally(t);
             }
         });
-        return QueryResult.newBuilder()
-                .addAllRows(future.join())
-                .build();
+        if (accepted) {
+            return QueryResult.newBuilder()
+                    .addAllRows(future.join())
+                    .build();
+        } else {
+            return QueryResult.newBuilder()
+                    .build();
+        }
+    }
+
+    boolean isActive(Connection conn) {
+        return Optional.ofNullable(conn).stream()
+                .anyMatch(it -> {
+                    try {
+                        return !it.isClosed();
+                    } catch (SQLException e) {
+                        return false;
+                    }
+                });
+    }
+
+    Optional<Boolean> commit(Connection conn) {
+        return Optional.ofNullable(conn).stream()
+                .map(it -> {
+                    try {
+                        it.commit();
+                        return true;
+                    } catch (SQLException e) {
+                        return false;
+                    }
+                })
+                .findFirst();
+    }
+
+    Optional<Boolean> rollback(Connection conn) {
+        return Optional.ofNullable(conn).stream()
+                .map(it -> {
+                    try {
+                        it.rollback();
+                        return true;
+                    } catch (SQLException e) {
+                        return false;
+                    }
+                })
+                .findFirst();
     }
 
     protected Value getSqlArg(ResultSet rs, int i) {

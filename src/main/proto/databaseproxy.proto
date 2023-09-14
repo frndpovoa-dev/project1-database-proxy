@@ -24,6 +24,7 @@ message Empty {
 }
 
 message BeginTransactionConfig {
+  int32 timeout = 1;
 }
 
 message Transaction {
@@ -35,6 +36,7 @@ message Transaction {
     ACTIVE = 1;
     COMMITTED = 2;
     ROLLED_BACK = 3;
+    UNKNOWN = 4;
   }
 }
 

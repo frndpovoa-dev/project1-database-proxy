@@ -4,13 +4,14 @@ import dev.frndpovoa.project1.databaseproxy.BaseIntTest;
 import dev.frndpovoa.project1.databaseproxy.config.GrpcProperties;
 import dev.frndpovoa.project1.databaseproxy.proto.*;
 import io.grpc.ManagedChannelBuilder;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.Duration;
 import java.util.List;
 
+import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DatabaseProxyServiceIntTest extends BaseIntTest {
@@ -64,6 +65,9 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
               name varchar
             ) with "ATOMICITY=TRANSACTIONAL_SNAPSHOT";
             """;
+    public static final String DROP_TABLE_IF_EXISTS_TEST = """
+            drop table if exists test;
+            """;
 
     @Autowired
     private GrpcProperties grpcProperties;
@@ -75,20 +79,21 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
                 .forAddress("localhost", grpcProperties.getPort())
                 .usePlaintext()
                 .build());
+
+        ddl(DROP_TABLE_IF_EXISTS_TEST);
+        ddl(CREATE_TABLE_TEST);
     }
 
     @Test
-    void createTable() {
-        ddl(CREATE_TABLE_TEST);
-
-        Transaction tx1 = beginTransaction();
-        Transaction tx2 = beginTransaction();
+    void givenCreateTable_thenInsert_thenSelect() {
+        Transaction tx1 = beginTransaction(1_000);
+        Transaction tx2 = beginTransaction(1_000);
 
         execute(tx1, 1, INSERT_INTO_TEST_ID_NAME_VALUES_1_DUMMY);
         query(tx1, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
         query(tx2, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
 
-        commit(tx1);
+        commit(tx1, Transaction.Status.COMMITTED);
 
         execute(tx2, 1, INSERT_INTO_TEST_ID_NAME_VALUES_2_FOOBAR);
         query(tx2, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_2, RESULTS_NAME_FOOBAR);
@@ -96,15 +101,30 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
 
         rollback(tx2);
 
-        Transaction tx3 = beginTransaction();
+        Transaction tx3 = beginTransaction(1_000);
         query(tx3, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
         query(tx3, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_2, null);
 
-        commit(tx3);
+        commit(tx3, Transaction.Status.COMMITTED);
     }
 
-    private Transaction beginTransaction() {
+    @Test
+    void givenCreateTable_thenInsert_thenTransactionTimeout() {
+        Transaction tx1 = beginTransaction(100);
+        execute(tx1, 1, INSERT_INTO_TEST_ID_NAME_VALUES_1_DUMMY);
+
+        sleepUninterruptibly(Duration.ofMillis(1_000));
+
+        tx1 = commit(tx1, Transaction.Status.UNKNOWN);
+
+        query(tx1, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
+    }
+
+    private Transaction beginTransaction(
+            int timeout
+    ) {
         Transaction transaction = databaseProxyServiceClient.beginTransaction(BeginTransactionConfig.newBuilder()
+                .setTimeout(timeout)
                 .build());
         assertThat(transaction)
                 .isNotNull()
@@ -139,22 +159,25 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
                 .hasFieldOrPropertyWithValue("rowsAffected", rowsAffected);
     }
 
-    private void commit(
-            Transaction transaction
+    private Transaction commit(
+            Transaction transaction,
+            Transaction.Status expectedStatus
     ) {
         transaction = databaseProxyServiceClient.commitTransaction(transaction);
         assertThat(transaction)
                 .isNotNull()
-                .hasFieldOrPropertyWithValue("status", Transaction.Status.COMMITTED);
+                .hasFieldOrPropertyWithValue("status", expectedStatus);
+        return transaction;
     }
 
-    private void rollback(
+    private Transaction rollback(
             Transaction transaction
     ) {
         transaction = databaseProxyServiceClient.rollbackTransaction(transaction);
         assertThat(transaction)
                 .isNotNull()
                 .hasFieldOrPropertyWithValue("status", Transaction.Status.ROLLED_BACK);
+        return transaction;
     }
 
     private void query(
