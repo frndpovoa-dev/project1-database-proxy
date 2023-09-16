@@ -9,7 +9,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.Duration;
+import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,22 +44,13 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
             select name from test
             where id = ?;
             """;
-    private static final String INSERT_INTO_TEST_ID_NAME_VALUES_1_DUMMY = """
+    private static final String INSERT_INTO_TEST_ID_NAME = """
             insert into test (
               id,
               name
             ) values (
-              1,
-              'dummy'
-            );
-            """;
-    private static final String INSERT_INTO_TEST_ID_NAME_VALUES_2_FOOBAR = """
-            insert into test (
-              id,
-              name
-            ) values (
-              2,
-              'foobar'
+              ?,
+              ?
             );
             """;
     private static final String CREATE_TABLE_TEST = """
@@ -89,14 +83,30 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
         Transaction tx1 = beginTransaction(1_000);
         Transaction tx2 = beginTransaction(1_000);
 
-        executeTx(tx1, 1, INSERT_INTO_TEST_ID_NAME_VALUES_1_DUMMY);
+        executeTx(tx1, 1, INSERT_INTO_TEST_ID_NAME, Stream.of(
+                        new AbstractMap.SimpleEntry<>(ValueInt64.newBuilder().setValue(1).build(), ValueCode.INT64),
+                        new AbstractMap.SimpleEntry<>(ValueString.newBuilder().setValue("dummy").build(), ValueCode.STRING)
+                )
+                .map(entry -> Value.newBuilder()
+                        .setCode(entry.getValue())
+                        .setData(entry.getKey().toByteString())
+                        .build())
+                .toList());
         queryTx(tx1, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
         queryTx(tx2, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
         query(0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
 
         commit(tx1, Transaction.Status.COMMITTED);
 
-        executeTx(tx2, 1, INSERT_INTO_TEST_ID_NAME_VALUES_2_FOOBAR);
+        executeTx(tx2, 1, INSERT_INTO_TEST_ID_NAME, Stream.of(
+                        new AbstractMap.SimpleEntry<>(ValueInt64.newBuilder().setValue(2).build(), ValueCode.INT64),
+                        new AbstractMap.SimpleEntry<>(ValueString.newBuilder().setValue("foobar").build(), ValueCode.STRING)
+                )
+                .map(entry -> Value.newBuilder()
+                        .setCode(entry.getValue())
+                        .setData(entry.getKey().toByteString())
+                        .build())
+                .toList());
         queryTx(tx2, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_2, RESULTS_NAME_FOOBAR);
         queryTx(tx2, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
         query(1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
@@ -113,7 +123,15 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
     @Test
     void givenCreateTable_thenInsert_thenTransactionTimeout() {
         Transaction tx1 = beginTransaction(100);
-        executeTx(tx1, 1, INSERT_INTO_TEST_ID_NAME_VALUES_1_DUMMY);
+        executeTx(tx1, 1, INSERT_INTO_TEST_ID_NAME, Stream.of(
+                        new AbstractMap.SimpleEntry<>(ValueInt64.newBuilder().setValue(1).build(), ValueCode.INT64),
+                        new AbstractMap.SimpleEntry<>(ValueString.newBuilder().setValue("dummy").build(), ValueCode.STRING)
+                )
+                .map(entry -> Value.newBuilder()
+                        .setCode(entry.getValue())
+                        .setData(entry.getKey().toByteString())
+                        .build())
+                .toList());
 
         sleepUninterruptibly(Duration.ofMillis(1_000));
 
@@ -149,13 +167,15 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
     private void executeTx(
             Transaction transaction,
             int rowsAffected,
-            String sql
+            String sql,
+            Collection<Value> args
     ) {
         ExecuteResult insertResult = databaseProxyServiceClient.executeTx(ExecuteTxConfig.newBuilder()
                 .setTransaction(transaction)
                 .setExecuteConfig(ExecuteConfig.newBuilder()
                         .setTimeout(100)
                         .setQuery(sql)
+                        .addAllArgs(args)
                         .build())
                 .build());
         assertThat(insertResult)

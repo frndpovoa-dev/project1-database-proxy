@@ -6,15 +6,16 @@ import dev.frndpovoa.project1.databaseproxy.proto.*;
 import io.grpc.stub.StreamObserver;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.openjpa.lib.jdbc.SQLFormatter;
 import org.springframework.stereotype.Service;
 
 import java.sql.*;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,11 +25,28 @@ import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterrup
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBase {
     private final ConcurrentHashMap<String, DatabaseOperation> transactionalOperationMap = new ConcurrentHashMap<>();
     private final UniqueIdGenerator uniqueIdGenerator;
     private final IgniteProperties igniteProperties;
+    private final SQLFormatter defaultSqlFormatter;
+
+    public DatabaseProxyService(
+            UniqueIdGenerator uniqueIdGenerator,
+            IgniteProperties igniteProperties
+    ) {
+        this.uniqueIdGenerator = uniqueIdGenerator;
+        this.igniteProperties = igniteProperties;
+
+        SQLFormatter sqlFormatter = new SQLFormatter();
+        sqlFormatter.setClauseIndent("");
+        sqlFormatter.setDoubleSpace(false);
+        sqlFormatter.setLineLength(Integer.MAX_VALUE);
+        sqlFormatter.setMultiLine(false);
+        sqlFormatter.setNewline("");
+        sqlFormatter.setWrapIndent("");
+        this.defaultSqlFormatter = sqlFormatter;
+    }
 
     @Override
     public void beginTransaction(BeginTransactionConfig config, StreamObserver<Transaction> responseObserver) {
@@ -41,6 +59,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
 
         DatabaseOperation databaseOperation = DatabaseOperation.builder()
                 .igniteProperties(igniteProperties)
+                .sqlFormatter(defaultSqlFormatter)
                 .transaction(transaction)
                 .build();
 
@@ -119,6 +138,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
         try {
             DatabaseOperation databaseOperation = DatabaseOperation.builder()
                     .igniteProperties(igniteProperties)
+                    .sqlFormatter(defaultSqlFormatter)
                     .transaction(null)
                     .build();
 
@@ -153,6 +173,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
         try {
             DatabaseOperation databaseOperation = DatabaseOperation.builder()
                     .igniteProperties(igniteProperties)
+                    .sqlFormatter(defaultSqlFormatter)
                     .transaction(null)
                     .build();
 
@@ -180,6 +201,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
         try {
             DatabaseOperation databaseOperation = DatabaseOperation.builder()
                     .igniteProperties(igniteProperties)
+                    .sqlFormatter(defaultSqlFormatter)
                     .transaction(null)
                     .build();
 
@@ -281,7 +303,8 @@ class DatabaseOperation {
             return super.add(doWithConnection);
         }
     };
-    private IgniteProperties igniteProperties;
+    private final IgniteProperties igniteProperties;
+    private final SQLFormatter sqlFormatter;
     @Getter
     @Setter
     private Transaction transaction;
@@ -441,7 +464,7 @@ class DatabaseOperation {
                 IntStream.range(0, config.getArgsCount())
                         .forEach(i -> setSqlArg(stmt, i + 1, config.getArgs(i)));
 
-                log.debug("sql -> {}", config.getQuery());
+                logSqlQuery(config.getQuery());
 
                 future.complete(stmt.executeUpdate());
             } catch (Throwable t) {
@@ -469,7 +492,7 @@ class DatabaseOperation {
                 IntStream.range(0, config.getArgsCount())
                         .forEach(i -> setSqlArg(stmt, i + 1, config.getArgs(i)));
 
-                log.debug("sql -> {}", config.getQuery());
+                logSqlQuery(config.getQuery());
 
                 List<Row> results = new ArrayList<>();
                 try (ResultSet rs = stmt.executeQuery()) {
@@ -641,5 +664,11 @@ class DatabaseOperation {
 
     protected int getQueryTimeout(long timeout) {
         return (timeout > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) timeout;
+    }
+
+    protected void logSqlQuery(String query) {
+        if (igniteProperties.isShowSql()) {
+            log.debug("{}", Objects.toString(sqlFormatter.prettyPrint(query)).trim());
+        }
     }
 }

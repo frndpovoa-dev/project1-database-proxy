@@ -3,6 +3,7 @@ app:
     port: 9090
   ignite:
     url: jdbc:ignite:thin://${IGNITE_HOST}:${IGNITE_PORT}
+    show-sql: true
 
 logging:
   level:
