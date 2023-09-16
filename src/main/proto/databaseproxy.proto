@@ -26,7 +26,7 @@ message Empty {
 }
 
 message BeginTransactionConfig {
-  int32 timeout = 1;
+  int64 timeout = 1;
   bool readOnly = 2;
 }
 
@@ -51,7 +51,7 @@ message DdlConfig {
 message ExecuteConfig {
   string query = 1;
   repeated Value args = 2;
-  int32 timeout = 3;
+  int64 timeout = 3;
 }
 
 message ExecuteTxConfig {
@@ -62,7 +62,7 @@ message ExecuteTxConfig {
 message QueryConfig {
   string query = 1;
   repeated Value args = 2;
-  int32 timeout = 3;
+  int64 timeout = 3;
 }
 
 message QueryTxConfig {

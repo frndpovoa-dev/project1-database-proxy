@@ -9,6 +9,8 @@ import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.TimeUnit;
+
 @Component
 @RequiredArgsConstructor
 public class GrpcServer implements InitializingBean, DisposableBean {
@@ -18,9 +20,11 @@ public class GrpcServer implements InitializingBean, DisposableBean {
 
     @Override
     public void destroy() throws Exception {
-        server
-                .shutdown()
-                .awaitTermination();
+        server.shutdown();
+        if (!server.awaitTermination(20, TimeUnit.SECONDS)) {
+            server.shutdownNow();
+            server.awaitTermination(5, TimeUnit.SECONDS);
+        }
     }
 
     @Override

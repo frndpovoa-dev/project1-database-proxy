@@ -3,3 +3,8 @@ app:
     port: 9090
   ignite:
     url: jdbc:ignite:thin://${IGNITE_HOST}:${IGNITE_PORT}
+
+logging:
+  level:
+    root: INFO
+    dev.frndpovoa.project1: DEBUG

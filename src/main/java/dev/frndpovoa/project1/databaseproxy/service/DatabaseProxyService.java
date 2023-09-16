@@ -37,6 +37,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                 .setStatus(Transaction.Status.ACTIVE)
                 .build();
 
+        log.debug("beginTransaction(timeout: {}) -> {}", config.getTimeout(), transaction.getStatus());
+
         DatabaseOperation databaseOperation = DatabaseOperation.builder()
                 .igniteProperties(igniteProperties)
                 .transaction(transaction)
@@ -59,7 +61,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void commitTransaction(Transaction transaction, StreamObserver<Transaction> responseObserver) {
         try {
-            DatabaseOperation databaseOperation = getTransactionalOperation(transaction);
+            DatabaseOperation databaseOperation = getDatabaseOperation(transaction);
 
             if (databaseOperation.getTransaction().getStatus() != Transaction.Status.ACTIVE) {
                 responseObserver.onError(new IllegalArgumentException("Transaction is not active"));
@@ -73,6 +75,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                     .setStatus(committed ? Transaction.Status.COMMITTED : Transaction.Status.UNKNOWN)
                     .build();
 
+            log.debug("commitTransaction() -> {}", transaction.getStatus());
+
             databaseOperation.setTransaction(transaction);
 
             responseObserver.onNext(transaction);
@@ -85,7 +89,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void rollbackTransaction(Transaction transaction, StreamObserver<Transaction> responseObserver) {
         try {
-            DatabaseOperation databaseOperation = getTransactionalOperation(transaction);
+            DatabaseOperation databaseOperation = getDatabaseOperation(transaction);
 
             if (databaseOperation.getTransaction().getStatus() != Transaction.Status.ACTIVE) {
                 responseObserver.onError(new IllegalArgumentException("Transaction is not active"));
@@ -98,6 +102,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
             transaction = databaseOperation.getTransaction().toBuilder()
                     .setStatus(rolledBack ? Transaction.Status.ROLLED_BACK : Transaction.Status.UNKNOWN)
                     .build();
+
+            log.debug("rollbackTransaction() -> {}", transaction.getStatus());
 
             databaseOperation.setTransaction(transaction);
 
@@ -199,7 +205,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void executeTx(ExecuteTxConfig config, StreamObserver<ExecuteResult> responseObserver) {
         try {
-            ExecuteResult result = getTransactionalOperation(config.getTransaction())
+            ExecuteResult result = getDatabaseOperation(config.getTransaction())
                     .execute(config.getExecuteConfig());
             responseObserver.onNext(result);
             responseObserver.onCompleted();
@@ -211,7 +217,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void queryTx(QueryTxConfig config, StreamObserver<QueryResult> responseObserver) {
         try {
-            QueryResult result = getTransactionalOperation(config.getTransaction())
+            QueryResult result = getDatabaseOperation(config.getTransaction())
                     .query(config.getQueryConfig());
             responseObserver.onNext(result);
             responseObserver.onCompleted();
@@ -227,28 +233,31 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
 
     @Override
     public void closeConnection(Empty request, StreamObserver<Empty> responseObserver) {
+        responseObserver.onNext(Empty.newBuilder().build());
         responseObserver.onCompleted();
     }
 
     @Override
     public void closeStatement(Empty request, StreamObserver<Empty> responseObserver) {
+        responseObserver.onNext(Empty.newBuilder().build());
         responseObserver.onCompleted();
     }
 
     @Override
     public void closeRows(Empty request, StreamObserver<Empty> responseObserver) {
+        responseObserver.onNext(Empty.newBuilder().build());
         responseObserver.onCompleted();
     }
 
-    DatabaseOperation getTransactionalOperation(Transaction transaction) {
+    DatabaseOperation getDatabaseOperation(Transaction transaction) {
         return Optional.ofNullable(transactionalOperationMap.get(transaction.getId()))
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
     }
 }
 
 @FunctionalInterface
-interface DoInTransaction {
-    void doInTransaction(Params params);
+interface DoWithConnection {
+    void doWithConnection(Params params);
 
     @Getter
     @Builder
@@ -263,13 +272,13 @@ interface DoInTransaction {
 @Builder
 class DatabaseOperation {
     private final AtomicBoolean shouldContinue = new AtomicBoolean(true);
-    private final LinkedBlockingQueue<DoInTransaction> taskQueue = new LinkedBlockingQueue<>() {
+    private final LinkedBlockingQueue<DoWithConnection> taskQueue = new LinkedBlockingQueue<>() {
         @Override
-        public boolean add(DoInTransaction doInTransaction) {
+        public boolean add(DoWithConnection doWithConnection) {
             if (!shouldContinue.get()) {
                 return false;
             }
-            return super.add(doInTransaction);
+            return super.add(doWithConnection);
         }
     };
     private IgniteProperties igniteProperties;
@@ -282,18 +291,22 @@ class DatabaseOperation {
         CompletableFuture.runAsync(() -> {
             ExecutorService sideTaskExecutor = Executors.newFixedThreadPool(2);
             try (Connection connection = DriverManager.getConnection(igniteProperties.getUrl())) {
-                connOpened.complete(true);
+                boolean opened = !connection.isClosed();
+                log.debug("openConnection() -> {}", opened);
+                connOpened.complete(opened);
 
-                DoInTransaction.Params params = DoInTransaction.Params.builder()
+                DoWithConnection.Params params = DoWithConnection.Params.builder()
                         .connection(connection)
                         .sideTaskExecutor(sideTaskExecutor)
                         .shouldContinue(shouldContinue)
                         .build();
 
                 while (shouldContinue.get()) {
-                    DoInTransaction callback = taskQueue.poll(1, TimeUnit.SECONDS);
+                    DoWithConnection callback = taskQueue.poll(1, TimeUnit.SECONDS);
                     if (callback != null) {
-                        callback.doInTransaction(params);
+                        log.debug("before doWithConnection()");
+                        callback.doWithConnection(params);
+                        log.debug("after doWithConnection(), shouldContinue -> {}", shouldContinue.get());
                     }
                 }
             } catch (Throwable t) {
@@ -308,11 +321,12 @@ class DatabaseOperation {
     }
 
     void closeConnection() {
-        CompletableFuture<Void> future = new CompletableFuture<>();
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
         boolean accepted = taskQueue.add(params -> {
             try {
+                log.debug("closeConnection()");
                 shouldContinue.set(false);
-                future.complete(null);
+                future.complete(true);
             } catch (Throwable t) {
                 log.error(t.getMessage(), t);
                 future.completeExceptionally(t);
@@ -330,14 +344,30 @@ class DatabaseOperation {
                 params.getConnection().setAutoCommit(false);
                 params.getConnection().setReadOnly(config.getReadOnly());
 
+                CompletableFuture<Void> rollbackTask = CompletableFuture
+                        .runAsync(() -> {
+                            try {
+                                TimeUnit.MILLISECONDS.sleep(config.getTimeout());
+                                log.debug("transaction timed out, rolling back");
+                                taskQueue.add(params1 -> {
+                                    boolean rolledBack = Optional.ofNullable(params1.getConnection())
+                                            .filter(this::isActive)
+                                            .flatMap(this::rollback)
+                                            .orElse(false);
+                                    log.debug("rolledBack -> {}", rolledBack);
+                                    shouldContinue.set(false);
+                                });
+                            } catch (InterruptedException e) {
+                                log.debug("automatic rollback task interrupted");
+                            }
+                        }, params.getSideTaskExecutor());
+
                 CompletableFuture
                         .runAsync(() -> {
-                            sleepUninterruptibly(Duration.ofMillis(config.getTimeout()));
-                            boolean ignored = Optional.ofNullable(params.getConnection())
-                                    .filter(this::isActive)
-                                    .flatMap(this::rollback)
-                                    .orElse(false);
-                            shouldContinue.set(false);
+                            while (shouldContinue.get()) {
+                                sleepUninterruptibly(Duration.ofMillis(500));
+                            }
+                            rollbackTask.cancel(true);
                         }, params.getSideTaskExecutor());
 
                 future.complete(true);
@@ -346,6 +376,7 @@ class DatabaseOperation {
                 future.completeExceptionally(t);
             }
         });
+        log.debug("begin tx task accepted -> {}", accepted);
         if (accepted) {
             return future.join();
         } else {
@@ -357,17 +388,19 @@ class DatabaseOperation {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
         boolean accepted = taskQueue.add(params -> {
             try {
-                boolean result = Optional.ofNullable(params.getConnection())
+                boolean commited = Optional.ofNullable(params.getConnection())
                         .filter(this::isActive)
                         .flatMap(this::commit)
                         .orElse(false);
+                log.debug("commited -> {}", commited);
                 shouldContinue.set(false);
-                future.complete(result);
+                future.complete(commited);
             } catch (Throwable t) {
                 log.error(t.getMessage(), t);
                 future.completeExceptionally(t);
             }
         });
+        log.debug("commit tx task accepted -> {}", accepted);
         if (accepted) {
             return future.join();
         } else {
@@ -379,17 +412,19 @@ class DatabaseOperation {
         CompletableFuture<Boolean> future = new CompletableFuture<>();
         boolean accepted = taskQueue.add(params -> {
             try {
-                boolean result = Optional.ofNullable(params.getConnection())
+                boolean rolledBack = Optional.ofNullable(params.getConnection())
                         .filter(this::isActive)
                         .flatMap(this::rollback)
                         .orElse(false);
+                log.debug("rolledBack -> {}", rolledBack);
                 shouldContinue.set(false);
-                future.complete(result);
+                future.complete(rolledBack);
             } catch (Throwable t) {
                 log.error(t.getMessage(), t);
                 future.completeExceptionally(t);
             }
         });
+        log.debug("rollback tx task accepted -> {}", accepted);
         if (accepted) {
             return future.join();
         } else {
@@ -401,10 +436,12 @@ class DatabaseOperation {
         CompletableFuture<Integer> future = new CompletableFuture<>();
         boolean accepted = taskQueue.add(params -> {
             try (PreparedStatement stmt = params.getConnection().prepareStatement(config.getQuery())) {
-                stmt.setQueryTimeout(config.getTimeout());
+                stmt.setQueryTimeout(getQueryTimeout(config.getTimeout()));
 
                 IntStream.range(0, config.getArgsCount())
                         .forEach(i -> setSqlArg(stmt, i + 1, config.getArgs(i)));
+
+                log.debug("sql -> {}", config.getQuery());
 
                 future.complete(stmt.executeUpdate());
             } catch (Throwable t) {
@@ -412,6 +449,7 @@ class DatabaseOperation {
                 future.completeExceptionally(t);
             }
         });
+        log.debug("execute sql task accepted -> {}", accepted);
         if (accepted) {
             return ExecuteResult.newBuilder()
                     .setRowsAffected(future.join())
@@ -426,10 +464,12 @@ class DatabaseOperation {
         CompletableFuture<List<Row>> future = new CompletableFuture<>();
         boolean accepted = taskQueue.add(params -> {
             try (PreparedStatement stmt = params.getConnection().prepareStatement(config.getQuery())) {
-                stmt.setQueryTimeout(config.getTimeout());
+                stmt.setQueryTimeout(getQueryTimeout(config.getTimeout()));
 
                 IntStream.range(0, config.getArgsCount())
                         .forEach(i -> setSqlArg(stmt, i + 1, config.getArgs(i)));
+
+                log.debug("sql -> {}", config.getQuery());
 
                 List<Row> results = new ArrayList<>();
                 try (ResultSet rs = stmt.executeQuery()) {
@@ -449,6 +489,7 @@ class DatabaseOperation {
                 future.completeExceptionally(t);
             }
         });
+        log.debug("query sql task accepted -> {}", accepted);
         if (accepted) {
             return QueryResult.newBuilder()
                     .addAllRows(future.join())
@@ -471,35 +512,35 @@ class DatabaseOperation {
     }
 
     Optional<Boolean> commit(Connection conn) {
-        return Optional.ofNullable(conn).stream()
+        return Optional.ofNullable(conn)
                 .map(it -> {
                     try {
                         it.commit();
                         return true;
                     } catch (SQLException e) {
+                        log.error(e.getMessage(), e);
                         return false;
                     }
-                })
-                .findFirst();
+                });
     }
 
     Optional<Boolean> rollback(Connection conn) {
-        return Optional.ofNullable(conn).stream()
+        return Optional.ofNullable(conn)
                 .map(it -> {
                     try {
                         it.rollback();
                         return true;
                     } catch (SQLException e) {
+                        log.error(e.getMessage(), e);
                         return false;
                     }
-                })
-                .findFirst();
+                });
     }
 
     protected Value getSqlArg(ResultSet rs, int i) {
         try {
             switch (JDBCType.valueOf(rs.getMetaData().getColumnType(i))) {
-                case BIGINT -> {
+                case INTEGER -> {
                     return Value.newBuilder()
                             .setCode(ValueCode.INT64)
                             .setData(ValueInt64.newBuilder()
@@ -596,5 +637,9 @@ class DatabaseOperation {
         } catch (InvalidProtocolBufferException | SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    protected int getQueryTimeout(long timeout) {
+        return (timeout > Integer.MAX_VALUE) ? Integer.MAX_VALUE : (int) timeout;
     }
 }
