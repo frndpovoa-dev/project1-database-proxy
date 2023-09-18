@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DatabaseProxyServiceIntTest extends BaseIntTest {
     private static final List<Value> ARGS_ID_1 = List.of(Value.newBuilder()
@@ -55,7 +56,7 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
             """;
     private static final String CREATE_TABLE_TEST = """
             create table test (
-              id int primary key,
+              id bigint primary key,
               name varchar
             ) with "ATOMICITY=TRANSACTIONAL_SNAPSHOT";
             """;
@@ -80,8 +81,8 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
 
     @Test
     void givenCreateTable_thenInsert_thenSelect() {
-        Transaction tx1 = beginTransaction(1_000);
-        Transaction tx2 = beginTransaction(1_000);
+        Transaction tx1 = beginTransaction(10_000);
+        Transaction tx2 = beginTransaction(10_000);
 
         executeTx(tx1, 1, INSERT_INTO_TEST_ID_NAME, Stream.of(
                         new AbstractMap.SimpleEntry<>(ValueInt64.newBuilder().setValue(1).build(), ValueCode.INT64),
@@ -113,7 +114,7 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
 
         rollback(tx2);
 
-        Transaction tx3 = beginTransaction(1_000);
+        Transaction tx3 = beginTransaction(5_000);
         queryTx(tx3, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
         queryTx(tx3, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_2, null);
 
@@ -137,7 +138,12 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
 
         tx1 = commit(tx1, Transaction.Status.UNKNOWN);
 
-        queryTx(tx1, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
+        Transaction tx1a = tx1;
+        assertThatThrownBy(() -> queryTx(tx1a, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null))
+                .isInstanceOf(io.grpc.StatusRuntimeException.class)
+                .hasMessage("UNKNOWN: Transaction not found");
+
+        query(0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
     }
 
     private Transaction beginTransaction(
@@ -156,7 +162,7 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
     private void ddl(
             String sql
     ) {
-        DdlResult ddlResult = databaseProxyServiceClient.ddl(DdlConfig.newBuilder()
+        ExecuteResult ddlResult = databaseProxyServiceClient.execute(ExecuteConfig.newBuilder()
                 .setTimeout(100)
                 .setQuery(sql)
                 .build());
@@ -239,7 +245,7 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
             List<Row> expectedResults
     ) {
         QueryResult queryResult = databaseProxyServiceClient.query(QueryConfig.newBuilder()
-                .setTimeout(1_000)
+                .setTimeout(2_000)
                 .setQuery(sql)
                 .addAllArgs(args)
                 .build());

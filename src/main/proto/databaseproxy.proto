@@ -11,15 +11,14 @@ service DatabaseProxy {
   rpc BeginTransaction (BeginTransactionConfig) returns (Transaction) {}
   rpc CommitTransaction (Transaction) returns (Transaction) {}
   rpc RollbackTransaction (Transaction) returns (Transaction) {}
-  rpc Ddl (DdlConfig) returns (DdlResult) {}
   rpc Execute (ExecuteConfig) returns (ExecuteResult) {}
   rpc ExecuteTx (ExecuteTxConfig) returns (ExecuteResult) {}
   rpc Query (QueryConfig) returns (QueryResult) {}
   rpc QueryTx (QueryTxConfig) returns (QueryResult) {}
   rpc Next (NextConfig) returns (QueryResult) {}
-  rpc CloseConnection (Empty) returns (Empty) {}
+  rpc CloseResultSet (NextConfig) returns (Empty) {}
   rpc CloseStatement (Empty) returns (Empty) {}
-  rpc CloseRows (Empty) returns (Empty) {}
+  rpc CloseConnection (Empty) returns (Empty) {}
 }
 
 message Empty {
@@ -43,11 +42,6 @@ message Transaction {
   }
 }
 
-message DdlConfig {
-  string query = 1;
-  int32 timeout = 2;
-}
-
 message ExecuteConfig {
   string query = 1;
   repeated Value args = 2;
@@ -63,6 +57,7 @@ message QueryConfig {
   string query = 1;
   repeated Value args = 2;
   int64 timeout = 3;
+  int64 fetchSize = 4;
 }
 
 message QueryTxConfig {
@@ -72,9 +67,7 @@ message QueryTxConfig {
 
 message NextConfig {
   Transaction transaction = 1;
-}
-
-message DdlResult {
+  string queryResultId = 2;
 }
 
 message ExecuteResult {
@@ -82,7 +75,8 @@ message ExecuteResult {
 }
 
 message QueryResult {
-  repeated Row rows = 1;
+  string id = 1;
+  repeated Row rows = 2;
 }
 
 message Row {
