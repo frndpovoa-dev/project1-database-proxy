@@ -23,6 +23,7 @@
         <org.mapstruct_mapstruct.version>1.5.5.Final</org.mapstruct_mapstruct.version>
         <org.projectlombok_lombok.version>1.18.28</org.projectlombok_lombok.version>
         <org.testcontainers_testcontainers-java.version>1.18.3</org.testcontainers_testcontainers-java.version>
+        <org.yaml_snakeyaml.version>2.2</org.yaml_snakeyaml.version>
         <spring-boot.version>2.7.15</spring-boot.version>
     </properties>
     <dependencyManagement>
@@ -148,6 +149,12 @@
             <artifactId>junit-jupiter</artifactId>
             <version>${org.testcontainers_testcontainers-java.version}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <!-- https://security.snyk.io/vuln/SNYK-JAVA-ORGYAML-2806360 -->
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+            <version>${org.yaml_snakeyaml.version}</version>
         </dependency>
     </dependencies>
     <build>
