@@ -1,0 +1,56 @@
+name: Build
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - version-qa.txt
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        env:
+          cache-name: cache-m2-repository
+        with:
+          path: ~/.m2/repository
+          key: ${{runner.os}}-build-${{env.cache-name}}-${{hashFiles('**/pom.xml')}}
+          restore-keys: |
+            ${{runner.os}}-build-${{env.cache-name}}-
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - uses: actions/setup-go@v1
+        with:
+          go-version: '1.21'
+      - uses: snyk/actions/setup@master
+        with:
+          snyk-version: 'v1.1207.0'
+      - env:
+          SNYK_TOKEN: ${{secrets.SNYK_TOKEN}}
+        run: 'snyk test --maven-aggregate-project --severity-threshold=high --fail-on=upgradable'
+      - run: echo "APP_VERSION=$(cat version-qa.txt | tr -d "[:space:]")" >> $GITHUB_ENV
+      - run: 'chmod +x ./mvnw'
+      - run: './mvnw clean install -Drevision=$APP_VERSION -DskipTests --quiet'
+      - run: echo "APP_IMAGE=us-east1-docker.pkg.dev/pr-frndpovoadev-project1/project1/database-proxy" >> $GITHUB_ENV
+      - run: 'docker tag database-proxy:$APP_VERSION $APP_IMAGE:$APP_VERSION'
+      - uses: google-github-actions/auth@v1
+        with:
+          credentials_json: '${{secrets.GCP_CREDENTIALS}}'
+      - uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: '444.0.0'
+          install_components: core
+      - run: 'gcloud info'
+      - run: 'gcloud auth configure-docker us-east1-docker.pkg.dev'
+      - run: 'docker push $APP_IMAGE:$APP_VERSION'
+      - env:
+          GITHUB_TOKEN: ${{secrets.AUTH_TOKEN_WORKFLOW_DISPATCH}}
+        run: |
+          gh workflow run deploy.yaml \
+            --repo frndpovoa-dev/project1-project1-argocd \
+            --ref main \
+            --raw-field app1-name=qa-database-proxy \
+            --raw-field app1-version=$APP_VERSION
