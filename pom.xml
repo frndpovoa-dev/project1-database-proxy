@@ -225,10 +225,10 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>build-image-no-fork</id>
+                        <id>build-image</id>
                         <phase>install</phase>
                         <goals>
-                            <goal>build-image-no-fork</goal>
+                            <goal>build-image</goal>
                         </goals>
                     </execution>
                 </executions>
