@@ -27,10 +27,10 @@ jobs:
           go-version: '1.21'
       - uses: snyk/actions/setup@master
         with:
-          snyk-version: 'v1.1207.0'
+          snyk-version: 'v1.1225.0'
       - env:
           SNYK_TOKEN: ${{secrets.SNYK_TOKEN}}
-        run: 'snyk test --maven-aggregate-project --severity-threshold=high --fail-on=upgradable'
+        run: 'snyk test --severity-threshold=high --fail-on=upgradable'
       - run: echo "APP_VERSION=$(cat version-qa.txt | tr -d "[:space:]")" >> $GITHUB_ENV
       - run: 'chmod +x ./mvnw'
       - run: './mvnw clean protobuf:compile protobuf:compile-custom install -Drevision=$APP_VERSION -DskipTests --quiet'
