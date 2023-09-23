@@ -2,7 +2,7 @@ app:
   grpc:
     port: ${GRPC_PORT}
   ignite:
-    url: jdbc:ignite:thin://${IGNITE_HOST}:${IGNITE_PORT}
+    url: jdbc:ignite:thin://${IGNITE_HOST}:${IGNITE_PORT};user=${IGNITE_USERNAME};password=${IGNITE_PASSWORD}
     show-sql: false
 
 server:
