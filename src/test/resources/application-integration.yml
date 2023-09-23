@@ -2,6 +2,7 @@ app:
   grpc:
     port: 8090
   ignite:
+    url: jdbc:ignite:thin://${IGNITE_HOST}:${IGNITE_PORT}
     show-sql: true
 
 server:
