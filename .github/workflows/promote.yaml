@@ -18,7 +18,7 @@ jobs:
           install_components: core
       - run: 'gcloud info'
       - run: 'gcloud auth configure-docker us-east1-docker.pkg.dev'
-      - run: echo "APP_IMAGE=us-east1-docker.pkg.dev/pr-frndpovoadev-project1/project1/database-proxy" >> $GITHUB_ENV
+      - run: echo "APP_IMAGE=us-east1-docker.pkg.dev/pr-frndpovoadev-project1/project1-docker/database-proxy" >> $GITHUB_ENV
       - run: echo "PR_VERSION=$(cat version-pr.txt | tr -d "[:space:]")" >> $GITHUB_ENV
       - run: echo "QA_VERSION=$(cat version-qa.txt | tr -d "[:space:]")" >> $GITHUB_ENV
       - run: 'docker pull $APP_IMAGE:$QA_VERSION'
