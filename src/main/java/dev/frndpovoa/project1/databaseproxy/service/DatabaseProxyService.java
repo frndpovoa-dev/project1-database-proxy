@@ -31,13 +31,16 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     private final UniqueIdGenerator uniqueIdGenerator;
     private final IgniteProperties igniteProperties;
     private final SQLFormatter defaultSqlFormatter;
+    private final String node;
 
     public DatabaseProxyService(
             final UniqueIdGenerator uniqueIdGenerator,
-            final IgniteProperties igniteProperties
+            final IgniteProperties igniteProperties,
+            @org.springframework.beans.factory.annotation.Value("${app.node}") final String node
     ) {
         this.uniqueIdGenerator = uniqueIdGenerator;
         this.igniteProperties = igniteProperties;
+        this.node = node;
 
         final SQLFormatter sqlFormatter = new SQLFormatter();
         sqlFormatter.setClauseIndent("");
@@ -54,6 +57,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
         final Transaction transaction = Transaction.newBuilder()
                 .setId(uniqueIdGenerator.generate(Transaction.class))
                 .setStatus(Transaction.Status.ACTIVE)
+                .setNode(node)
                 .build();
 
         log.debug("beginTransaction(timeout: {}) -> {}", config.getTimeout(), transaction.getStatus());
@@ -315,7 +319,9 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     }
 
     private DatabaseOperation getDatabaseOperationByTransaction(final Transaction transaction) {
-        return Optional.ofNullable(transactionMap.get(transaction.getId()))
+        return Optional.ofNullable(transaction)
+                .filter(it -> Objects.equals(it.getNode(), node))
+                .map(it -> transactionMap.get(it.getId()))
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
     }
 

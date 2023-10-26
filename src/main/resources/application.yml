@@ -1,4 +1,5 @@
 app:
+  node: ${HOSTNAME}
   grpc:
     port: ${GRPC_PORT}
   ignite:

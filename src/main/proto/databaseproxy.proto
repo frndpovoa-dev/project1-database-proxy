@@ -32,6 +32,7 @@ message BeginTransactionConfig {
 message Transaction {
   string id = 1;
   Status status = 2;
+  string node = 3;
 
   enum Status {
     NOT_STARTED = 0;
