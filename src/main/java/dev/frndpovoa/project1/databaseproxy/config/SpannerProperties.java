@@ -6,8 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @Getter
 @Setter
-@ConfigurationProperties(prefix = "app.ignite")
-public class IgniteProperties {
-    private String url;
-    private boolean showSql;
+@ConfigurationProperties(prefix = "app.google.spanner")
+public class SpannerProperties {
+    private String project;
+    private String instance;
 }

@@ -58,7 +58,7 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
             create table test (
               id bigint primary key,
               name varchar
-            ) with "ATOMICITY=TRANSACTIONAL_SNAPSHOT";
+            );
             """;
     public static final String DROP_TABLE_IF_EXISTS_TEST = """
             drop table if exists test;
@@ -77,6 +77,11 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
 
         ddl(DROP_TABLE_IF_EXISTS_TEST);
         ddl(CREATE_TABLE_TEST);
+    }
+
+    @Test
+    void givenTableIsEmpty_thenSelect_thenReturnEmpty() {
+        query(0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
     }
 
     @Test
@@ -109,7 +114,7 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
                         .build())
                 .toList());
         queryTx(tx2, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_2, RESULTS_NAME_FOOBAR);
-        queryTx(tx2, 0, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, null);
+        queryTx(tx2, 1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
         query(1, SELECT_NAME_FROM_TEST_WHERE_ID, ARGS_ID_1, RESULTS_NAME_DUMMY);
 
         rollback(tx2);

@@ -7,7 +7,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 @Slf4j
 @SpringBootTest
-@ExtendWith({IgniteExtension.class})
+@ExtendWith({PostgresExtension.class})
 @ActiveProfiles({"integration"})
 public abstract class BaseIntTest {
 }

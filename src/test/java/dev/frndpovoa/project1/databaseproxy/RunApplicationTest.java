@@ -13,7 +13,7 @@ import static org.awaitility.Awaitility.await;
 
 @Slf4j
 @SpringBootTest
-@ExtendWith({IgniteExtension.class})
+@ExtendWith({PostgresExtension.class})
 @ActiveProfiles({"integration"})
 class RunApplicationTest {
     @Test

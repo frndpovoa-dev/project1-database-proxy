@@ -1,9 +1,18 @@
 app:
   grpc:
     port: 9090
-  ignite:
-    url: jdbc:ignite:thin://${IGNITE_HOST}:${IGNITE_PORT}
-    show-sql: true
+  google:
+    spanner:
+      project: ${GOOGLE_PROJECT:}
+      instance: ${SPANNER_INSTANCE:}
+      postgresql:
+        database: ${POSTGRESQL_DATABASE}
+        hostname: ${POSTGRESQL_HOSTNAME}
+        port: ${POSTGRESQL_PORT}
+        username: ${POSTGRESQL_USERNAME}
+        password: ${POSTGRESQL_PASSWORD}
+        url: jdbc:postgresql://${app.google.spanner.postgresql.hostname}:${app.google.spanner.postgresql.port}/${app.google.spanner.postgresql.database}?user=${app.google.spanner.postgresql.username}&password=${app.google.spanner.postgresql.password}
+        show-sql: true
 
 server:
   port: 8080
@@ -13,3 +22,8 @@ server:
 management:
   server:
     port: 8081
+
+logging:
+  level:
+    root: info
+    dev.frndpovoa.project1: debug

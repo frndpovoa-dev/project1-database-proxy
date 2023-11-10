@@ -12,26 +12,28 @@
         <file.encoding>UTF-8</file.encoding>
         <java.version>17</java.version>
         <project.build.sourceEncoding>${file.encoding}</project.build.sourceEncoding>
+        <com.google.cloud_google-cloud-spanner-pgadapter.version>0.23.1
+        </com.google.cloud_google-cloud-spanner-pgadapter.version>
         <com.google.guava_guava.version>32.1.2-jre</com.google.guava_guava.version>
         <com.google.protobuf_protoc.version>3.24.2</com.google.protobuf_protoc.version>
         <com.google.protobuf_protobuf-java.version>3.22.3</com.google.protobuf_protobuf-java.version>
-        <io.grpc_grpc.version>1.57.2</io.grpc_grpc.version>
-        <org.apache.ignite_ignite.version>2.15.0</org.apache.ignite_ignite.version>
-        <org.apache.ignite_ignite-spring-boot-thin-client-autoconfigure-ext.version>1.0.0</org.apache.ignite_ignite-spring-boot-thin-client-autoconfigure-ext.version>
+        <io.grpc_grpc.version>1.59.0</io.grpc_grpc.version>
         <org.apache.openjpa_openjpa.version>3.2.2</org.apache.openjpa_openjpa.version>
         <org.awaitility_awaitility.version>4.2.0</org.awaitility_awaitility.version>
         <org.mapstruct_mapstruct.version>1.5.5.Final</org.mapstruct_mapstruct.version>
+        <org.postgresql_postgresql.version>42.6.0</org.postgresql_postgresql.version>
         <org.projectlombok_lombok.version>1.18.28</org.projectlombok_lombok.version>
         <org.testcontainers_testcontainers-java.version>1.19.1</org.testcontainers_testcontainers-java.version>
         <org.yaml_snakeyaml.version>2.2</org.yaml_snakeyaml.version>
+        <google-cloud.version>26.27.0</google-cloud.version>
         <spring-boot.version>2.7.17</spring-boot.version>
     </properties>
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>io.grpc</groupId>
-                <artifactId>grpc-bom</artifactId>
-                <version>${io.grpc_grpc.version}</version>
+                <groupId>com.google.cloud</groupId>
+                <artifactId>libraries-bom</artifactId>
+                <version>${google-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -55,6 +57,11 @@
         </repository>
     </repositories>
     <dependencies>
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-spanner-pgadapter</artifactId>
+            <version>${com.google.cloud_google-cloud-spanner-pgadapter.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
@@ -93,16 +100,6 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.ignite</groupId>
-            <artifactId>ignite-core</artifactId>
-            <version>${org.apache.ignite_ignite.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.ignite</groupId>
-            <artifactId>ignite-spring</artifactId>
-            <version>${org.apache.ignite_ignite.version}</version>
-        </dependency>
-        <dependency>
             <groupId>org.apache.openjpa</groupId>
             <artifactId>openjpa-persistence-jdbc</artifactId>
             <version>${org.apache.openjpa_openjpa.version}</version>
@@ -123,6 +120,11 @@
             <artifactId>mapstruct-processor</artifactId>
             <version>${org.mapstruct_mapstruct.version}</version>
             <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${org.postgresql_postgresql.version}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -193,9 +195,12 @@
                 <artifactId>protobuf-maven-plugin</artifactId>
                 <version>0.6.1</version>
                 <configuration>
-                    <protocArtifact>com.google.protobuf:protoc:${com.google.protobuf_protoc.version}:exe:${os.detected.classifier}</protocArtifact>
+                    <protocArtifact>
+                        com.google.protobuf:protoc:${com.google.protobuf_protoc.version}:exe:${os.detected.classifier}
+                    </protocArtifact>
                     <pluginId>grpc-java</pluginId>
-                    <pluginArtifact>io.grpc:protoc-gen-grpc-java:${io.grpc_grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
+                    <pluginArtifact>io.grpc:protoc-gen-grpc-java:${io.grpc_grpc.version}:exe:${os.detected.classifier}
+                    </pluginArtifact>
                     <outputDirectory>${basedir}/target/generated-sources/protobuf/java</outputDirectory>
                     <clearOutputDirectory>false</clearOutputDirectory>
                 </configuration>

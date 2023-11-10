@@ -1,7 +1,7 @@
 package dev.frndpovoa.project1.databaseproxy.service;
 
 import com.google.protobuf.InvalidProtocolBufferException;
-import dev.frndpovoa.project1.databaseproxy.config.IgniteProperties;
+import dev.frndpovoa.project1.databaseproxy.config.PostgresqlProperties;
 import dev.frndpovoa.project1.databaseproxy.proto.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -29,17 +29,17 @@ import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterrup
 public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBase {
     private final ConcurrentHashMap<String, DatabaseOperation> transactionMap = new ConcurrentHashMap<>();
     private final UniqueIdGenerator uniqueIdGenerator;
-    private final IgniteProperties igniteProperties;
+    private final PostgresqlProperties postgresqlProperties;
     private final SQLFormatter defaultSqlFormatter;
     private final String node;
 
     public DatabaseProxyService(
             final UniqueIdGenerator uniqueIdGenerator,
-            final IgniteProperties igniteProperties,
+            final PostgresqlProperties postgresqlProperties,
             @org.springframework.beans.factory.annotation.Value("${app.node}") final String node
     ) {
         this.uniqueIdGenerator = uniqueIdGenerator;
-        this.igniteProperties = igniteProperties;
+        this.postgresqlProperties = postgresqlProperties;
         this.node = node;
 
         final SQLFormatter sqlFormatter = new SQLFormatter();
@@ -64,7 +64,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
 
         final DatabaseOperation ops = DatabaseOperation.builder()
                 .uniqueIdGenerator(uniqueIdGenerator)
-                .igniteProperties(igniteProperties)
+                .postgresqlProperties(postgresqlProperties)
                 .sqlFormatter(defaultSqlFormatter)
                 .transaction(transaction)
                 .build();
@@ -155,17 +155,18 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
             final Transaction transaction = Transaction.newBuilder()
                     .setId(uniqueIdGenerator.generate(Transaction.class))
                     .setStatus(Transaction.Status.ACTIVE)
+                    .setNode(node)
                     .build();
 
             final DatabaseOperation ops = DatabaseOperation.builder()
                     .uniqueIdGenerator(uniqueIdGenerator)
-                    .igniteProperties(igniteProperties)
+                    .postgresqlProperties(postgresqlProperties)
                     .sqlFormatter(defaultSqlFormatter)
                     .transaction(transaction)
                     .build();
 
             final boolean dml = config.getQuery()
-                    .matches("(?i)^(insert|update|delete|merge).*");
+                    .matches("(?i)^(insert|update|delete|merge)\\s+.*");
 
             ExecuteResult result;
             try {
@@ -203,11 +204,12 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
             final Transaction transaction = Transaction.newBuilder()
                     .setId(uniqueIdGenerator.generate(Transaction.class))
                     .setStatus(Transaction.Status.ACTIVE)
+                    .setNode(node)
                     .build();
 
             final DatabaseOperation ops = DatabaseOperation.builder()
                     .uniqueIdGenerator(uniqueIdGenerator)
-                    .igniteProperties(igniteProperties)
+                    .postgresqlProperties(postgresqlProperties)
                     .sqlFormatter(defaultSqlFormatter)
                     .transaction(transaction)
                     .build();
@@ -376,7 +378,7 @@ class DatabaseOperation {
         }
     };
     private final UniqueIdGenerator uniqueIdGenerator;
-    private final IgniteProperties igniteProperties;
+    private final PostgresqlProperties postgresqlProperties;
     private final SQLFormatter sqlFormatter;
     @Getter
     private Transaction transaction;
@@ -386,7 +388,7 @@ class DatabaseOperation {
         final CompletableFuture<Boolean> future = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {
             MDC.put("transaction.id", getMaskedId(transaction.getId()));
-            try (Connection connection = DriverManager.getConnection(igniteProperties.getUrl())) {
+            try (Connection connection = DriverManager.getConnection(postgresqlProperties.getUrl())) {
                 final boolean opened = !connection.isClosed();
                 log.debug("openConnection() -> {}", opened);
                 future.complete(opened);
@@ -625,18 +627,22 @@ class DatabaseOperation {
         final CompletableFuture<List<Row>> future = new CompletableFuture<>();
         final boolean accepted = queryTaskMap.get(config.getQueryResultId()).add(params -> {
             try {
+                boolean next = true;
                 int rowsFetched = 0;
                 final List<Row> results = new ArrayList<>();
-                while (params.getShouldContinue().get() && rowsFetched < params.getRs().getFetchSize() && params.getRs().next()) {
-                    rowsFetched++;
-                    results.add(Row.newBuilder()
-                            .addAllCols(IntStream.range(1, params.getRs().getMetaData().getColumnCount() + 1)
-                                    .mapToObj(i -> getSqlArg(params.getRs(), i))
-                                    .toList()
-                            )
-                            .build());
+                while (params.getShouldContinue().get() && next && rowsFetched < params.getRs().getFetchSize()) {
+                    next = params.getRs().next();
+                    if (next) {
+                        rowsFetched++;
+                        results.add(Row.newBuilder()
+                                .addAllCols(IntStream.range(1, params.getRs().getMetaData().getColumnCount() + 1)
+                                        .mapToObj(i -> getSqlArg(params.getRs(), i))
+                                        .toList()
+                                )
+                                .build());
+                    }
                 }
-                if (params.getRs().isLast() || params.getRs().isAfterLast()) {
+                if (!next) {
                     params.getShouldContinue().set(false);
                 }
                 future.complete(results);
@@ -829,7 +835,7 @@ class DatabaseOperation {
     }
 
     private void logQuery(final String query) {
-        if (igniteProperties.isShowSql()) {
+        if (postgresqlProperties.isShowSql()) {
             log.debug("{}", Objects.toString(sqlFormatter.prettyPrint(query)).trim());
         }
     }
