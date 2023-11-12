@@ -6,6 +6,8 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.List;
+
 @Slf4j
 public class PostgresExtension implements BeforeAllCallback {
     private GenericContainer<?> postgresql;
@@ -24,9 +26,9 @@ public class PostgresExtension implements BeforeAllCallback {
                 .withSharedMemorySize(1024 * 1024 * 512L)
                 .withEnv("POSTGRESQL_DATABASE", database)
                 .withEnv("POSTGRESQL_PASSWORD", password)
-                .withExposedPorts(port)
         ;
 
+        postgresql.setPortBindings(List.of(String.format("%s:%s", port, port)));
         postgresql.start();
 
         System.setProperty("POSTGRESQL_HOSTNAME", postgresql.getHost());
