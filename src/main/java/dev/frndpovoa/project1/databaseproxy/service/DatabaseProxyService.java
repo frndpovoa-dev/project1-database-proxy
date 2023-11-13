@@ -734,6 +734,17 @@ class DatabaseOperation {
                             .build();
 
                 }
+                case BIT -> {
+                    return Value.newBuilder()
+                            .setCode(ValueCode.BOOL)
+                            .setData(ValueBool.newBuilder()
+                                    .setValue(rs.getBoolean(i))
+                                    .build()
+                                    .toByteString()
+                            )
+                            .build();
+
+                }
                 case DOUBLE -> {
                     return Value.newBuilder()
                             .setCode(ValueCode.FLOAT64)
