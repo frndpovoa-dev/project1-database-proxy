@@ -90,13 +90,18 @@ message Value {
 }
 
 enum ValueCode {
-  INT64 = 0;
-  FLOAT64 = 1;
-  BOOL = 2;
-  BYTES = 3;
-  STRING = 4;
-  TIME = 5;
-  NULL = 6;
+  INT32 = 0;
+  INT64 = 1;
+  FLOAT64 = 2;
+  BOOL = 3;
+  BYTES = 4;
+  STRING = 5;
+  TIME = 6;
+  NULL = 7;
+}
+
+message ValueInt32 {
+  int32 value = 1;
 }
 
 message ValueInt64 {

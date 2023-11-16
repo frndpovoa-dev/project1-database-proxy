@@ -734,7 +734,7 @@ class DatabaseOperation {
                             .build();
 
                 }
-                case BIT -> {
+                case BOOLEAN, BIT -> {
                     return Value.newBuilder()
                             .setCode(ValueCode.BOOL)
                             .setData(ValueBool.newBuilder()
@@ -755,11 +755,21 @@ class DatabaseOperation {
                             )
                             .build();
                 }
-                case BOOLEAN -> {
+                case DATE -> {
                     return Value.newBuilder()
-                            .setCode(ValueCode.BOOL)
-                            .setData(ValueBool.newBuilder()
-                                    .setValue(rs.getBoolean(i))
+                            .setCode(ValueCode.TIME)
+                            .setData(ValueTime.newBuilder()
+                                    .setValue(rs.getDate(i).getTime())
+                                    .build()
+                                    .toByteString()
+                            )
+                            .build();
+                }
+                case INTEGER -> {
+                    return Value.newBuilder()
+                            .setCode(ValueCode.INT32)
+                            .setData(ValueTime.newBuilder()
+                                    .setValue(rs.getInt(i))
                                     .build()
                                     .toByteString()
                             )
@@ -768,18 +778,9 @@ class DatabaseOperation {
                 case VARCHAR -> {
                     return Value.newBuilder()
                             .setCode(ValueCode.STRING)
-                            .setData(ValueString.newBuilder()
-                                    .setValue(rs.getString(i))
-                                    .build()
-                                    .toByteString()
-                            )
-                            .build();
-                }
-                case DATE -> {
-                    return Value.newBuilder()
-                            .setCode(ValueCode.TIME)
-                            .setData(ValueTime.newBuilder()
-                                    .setValue(rs.getDate(i).getTime())
+                            .setData(Optional.ofNullable(rs.getString(i))
+                                    .map(it -> ValueString.newBuilder().setValue(it))
+                                    .orElseGet(ValueString::newBuilder)
                                     .build()
                                     .toByteString()
                             )
