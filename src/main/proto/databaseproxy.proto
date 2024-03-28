@@ -121,7 +121,7 @@ message ValueString {
 }
 
 message ValueTime {
-  int64 value = 1;
+  string value = 1;
 }
 
 message ValueNull {

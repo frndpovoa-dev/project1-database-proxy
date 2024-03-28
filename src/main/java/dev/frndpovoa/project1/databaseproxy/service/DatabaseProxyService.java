@@ -14,6 +14,9 @@ import org.springframework.stereotype.Service;
 
 import java.sql.*;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -745,6 +748,18 @@ class DatabaseOperation {
                             .build();
 
                 }
+                case DATE -> {
+                    return Value.newBuilder()
+                            .setCode(ValueCode.TIME)
+                            .setData(Optional.ofNullable(rs.getDate(i))
+                                    .map(it -> OffsetDateTime.ofInstant(it.toInstant(), ZoneId.systemDefault()))
+                                    .map(it -> ValueTime.newBuilder().setValue(it.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)))
+                                    .orElseGet(ValueTime::newBuilder)
+                                    .build()
+                                    .toByteString()
+                            )
+                            .build();
+                }
                 case DOUBLE -> {
                     return Value.newBuilder()
                             .setCode(ValueCode.FLOAT64)
@@ -755,21 +770,23 @@ class DatabaseOperation {
                             )
                             .build();
                 }
-                case DATE -> {
+                case INTEGER -> {
                     return Value.newBuilder()
-                            .setCode(ValueCode.TIME)
-                            .setData(ValueTime.newBuilder()
-                                    .setValue(rs.getDate(i).getTime())
+                            .setCode(ValueCode.INT32)
+                            .setData(ValueInt32.newBuilder()
+                                    .setValue(rs.getInt(i))
                                     .build()
                                     .toByteString()
                             )
                             .build();
                 }
-                case INTEGER -> {
+                case TIMESTAMP -> {
                     return Value.newBuilder()
-                            .setCode(ValueCode.INT32)
-                            .setData(ValueTime.newBuilder()
-                                    .setValue(rs.getInt(i))
+                            .setCode(ValueCode.TIME)
+                            .setData(Optional.ofNullable(rs.getTimestamp(i))
+                                    .map(it -> OffsetDateTime.ofInstant(it.toInstant(), ZoneId.systemDefault()))
+                                    .map(it -> ValueTime.newBuilder().setValue(it.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)))
+                                    .orElseGet(ValueTime::newBuilder)
                                     .build()
                                     .toByteString()
                             )
@@ -820,7 +837,9 @@ class DatabaseOperation {
                     stmt.setString(i, ValueString.parseFrom(value.getData()).getValue());
                 }
                 case TIME -> {
-                    stmt.setDate(i, new Date(ValueTime.parseFrom(value.getData()).getValue()));
+                    final String s = ValueTime.parseFrom(value.getData()).getValue();
+                    final OffsetDateTime odt = OffsetDateTime.parse(s, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+                    stmt.setTimestamp(i, new Timestamp(odt.toInstant().toEpochMilli()));
                 }
                 case NULL -> {
                     stmt.setNull(i, Types.NULL);
