@@ -2,9 +2,18 @@ app:
   node: ${HOSTNAME}
   grpc:
     port: ${GRPC_PORT}
-  ignite:
-    url: jdbc:ignite:thin://${IGNITE_HOST}:${IGNITE_PORT};user=${IGNITE_USERNAME};password=${IGNITE_PASSWORD}
-    show-sql: false
+  google:
+    spanner:
+      project: ${GOOGLE_PROJECT:}
+      instance: ${SPANNER_INSTANCE:}
+      postgresql:
+        database: ${POSTGRESQL_DATABASE}
+        hostname: ${POSTGRESQL_HOSTNAME}
+        port: ${POSTGRESQL_PORT}
+        username: ${POSTGRESQL_USERNAME}
+        password: ${POSTGRESQL_PASSWORD}
+        url: jdbc:postgresql://${app.google.spanner.postgresql.hostname}:${app.google.spanner.postgresql.port}/${app.google.spanner.postgresql.database}?user=${app.google.spanner.postgresql.username}&password=${app.google.spanner.postgresql.password}
+        show-sql: true
 
 server:
   port: ${PORT}
