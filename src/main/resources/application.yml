@@ -1,5 +1,5 @@
 app:
-  node: ${HOSTNAME}
+  node: ${_pod_name:${HOSTNAME}}
   grpc:
     port: ${GRPC_PORT}
   google:

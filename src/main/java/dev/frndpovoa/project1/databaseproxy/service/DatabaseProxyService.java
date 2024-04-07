@@ -41,6 +41,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
             final PostgresqlProperties postgresqlProperties,
             @org.springframework.beans.factory.annotation.Value("${app.node}") final String node
     ) {
+        log.info("Database proxy at node {}", node);
+
         this.uniqueIdGenerator = uniqueIdGenerator;
         this.postgresqlProperties = postgresqlProperties;
         this.node = node;
