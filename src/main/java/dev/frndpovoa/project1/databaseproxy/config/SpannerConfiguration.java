@@ -11,9 +11,9 @@ import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.Optional;
 
-@Component
-@Configuration(proxyBeanMethods = false)
-@Profile({"!integration"})
+//@Component
+//@Configuration(proxyBeanMethods = false)
+//@Profile({"!integration"})
 @RequiredArgsConstructor
 public class SpannerConfiguration {
     private final PostgresqlProperties postgresqlProperties;
