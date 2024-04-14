@@ -25,7 +25,7 @@
         <org.projectlombok_lombok.version>1.18.32</org.projectlombok_lombok.version>
         <org.testcontainers_testcontainers-java.version>1.19.7</org.testcontainers_testcontainers-java.version>
         <org.yaml_snakeyaml.version>2.2</org.yaml_snakeyaml.version>
-        <google-cloud.version>26.35.0</google-cloud.version>
+        <google-cloud.version>26.37.0</google-cloud.version>
         <spring-boot.version>3.2.4</spring-boot.version>
     </properties>
     <dependencyManagement>
