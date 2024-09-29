@@ -14,7 +14,7 @@ public class PostgresExtension implements BeforeAllCallback {
 
     @Override
     public void beforeAll(final ExtensionContext context) throws Exception {
-        final String database = "test";
+        final String database = "postgres";
         final int port = 5432;
         final String username = "postgres";
         final String password = "postgres";
