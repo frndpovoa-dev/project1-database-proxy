@@ -243,7 +243,7 @@
                     </excludes>
                     <image>
                         <name>${project.artifactId}:${revision}</name>
-                        <builder>paketobuildpacks/builder:tiny</builder>
+                        <builder>paketobuildpacks/builder-jammy-base</builder>
                         <env>
                             <BP_JVM_VERSION>${java.version}</BP_JVM_VERSION>
                         </env>
