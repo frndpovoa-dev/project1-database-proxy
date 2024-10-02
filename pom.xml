@@ -15,7 +15,7 @@
         <com.google.cloud_google-cloud-spanner-pgadapter.version>0.36.1
         </com.google.cloud_google-cloud-spanner-pgadapter.version>
         <com.google.guava_guava.version>33.3.0-jre</com.google.guava_guava.version>
-        <com.google.protobuf_protoc.version>3.25.4</com.google.protobuf_protoc.version>
+        <com.google.protobuf_protoc.version>3.25.5</com.google.protobuf_protoc.version>
         <com.google.protobuf_protobuf-java.version>3.25.4</com.google.protobuf_protobuf-java.version>
         <io.grpc_grpc.version>1.62.2</io.grpc_grpc.version>
         <org.apache.openjpa_openjpa.version>3.2.2</org.apache.openjpa_openjpa.version>
