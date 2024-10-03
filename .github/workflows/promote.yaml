@@ -14,7 +14,7 @@ jobs:
           credentials_json: '${{secrets.GCP_CREDENTIALS}}'
       - uses: google-github-actions/setup-gcloud@v1
         with:
-          version: '470.0.0'
+          version: '495.0.0'
           install_components: core
       - run: 'gcloud info'
       - run: 'gcloud auth configure-docker us-east1-docker.pkg.dev'
