@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @Getter
 @Setter
-@ConfigurationProperties(prefix = "app.google.spanner.postgresql")
+@ConfigurationProperties(prefix = "app.postgresql")
 public class PostgresqlProperties {
     private String database;
     private String username;
