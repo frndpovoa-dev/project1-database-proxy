@@ -8,7 +8,7 @@ app:
     port: ${POSTGRESQL_PORT}
     username: ${POSTGRESQL_USERNAME}
     password: ${POSTGRESQL_PASSWORD}
-    url: jdbc:postgresql://${app.postgresql.hostname}:${app.postgresql.port}/${app.postgresql.database}?user=${app.postgresql.username}&password=${app.postgresql.password}
+    url: ${POSTGRESQL_URL:jdbc:postgresql://${app.postgresql.hostname}:${app.postgresql.port}/${app.postgresql.database}?user=${app.postgresql.username}&password=${app.postgresql.password}}
     show-sql: true
 
 server:
