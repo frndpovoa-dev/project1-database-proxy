@@ -762,7 +762,7 @@ class DatabaseOperation {
                             )
                             .build();
                 }
-                case DOUBLE -> {
+                case NUMERIC, DOUBLE -> {
                     return Value.newBuilder()
                             .setCode(ValueCode.FLOAT64)
                             .setData(ValueFloat64.newBuilder()
