@@ -1,7 +1,6 @@
 package dev.frndpovoa.project1.databaseproxy.service;
 
 import com.google.protobuf.InvalidProtocolBufferException;
-import dev.frndpovoa.project1.databaseproxy.config.PostgresqlProperties;
 import dev.frndpovoa.project1.databaseproxy.proto.*;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -32,19 +31,16 @@ import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterrup
 public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBase {
     private final ConcurrentHashMap<String, DatabaseOperation> transactionMap = new ConcurrentHashMap<>();
     private final UniqueIdGenerator uniqueIdGenerator;
-    private final PostgresqlProperties postgresqlProperties;
     private final SQLFormatter defaultSqlFormatter;
     private final String node;
 
     public DatabaseProxyService(
             final UniqueIdGenerator uniqueIdGenerator,
-            final PostgresqlProperties postgresqlProperties,
             @org.springframework.beans.factory.annotation.Value("${app.node}") final String node
     ) {
         log.info("Database proxy at node {}", node);
 
         this.uniqueIdGenerator = uniqueIdGenerator;
-        this.postgresqlProperties = postgresqlProperties;
         this.node = node;
 
         final SQLFormatter sqlFormatter = new SQLFormatter();
@@ -69,7 +65,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
 
         final DatabaseOperation ops = DatabaseOperation.builder()
                 .uniqueIdGenerator(uniqueIdGenerator)
-                .postgresqlProperties(postgresqlProperties)
+                .connectionString(config.getConnectionString())
                 .sqlFormatter(defaultSqlFormatter)
                 .transaction(transaction)
                 .build();
@@ -165,7 +161,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
 
             final DatabaseOperation ops = DatabaseOperation.builder()
                     .uniqueIdGenerator(uniqueIdGenerator)
-                    .postgresqlProperties(postgresqlProperties)
+                    .connectionString(config.getConnectionString())
                     .sqlFormatter(defaultSqlFormatter)
                     .transaction(transaction)
                     .build();
@@ -214,7 +210,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
 
             final DatabaseOperation ops = DatabaseOperation.builder()
                     .uniqueIdGenerator(uniqueIdGenerator)
-                    .postgresqlProperties(postgresqlProperties)
+                    .connectionString(config.getConnectionString())
                     .sqlFormatter(defaultSqlFormatter)
                     .transaction(transaction)
                     .build();
@@ -383,7 +379,7 @@ class DatabaseOperation {
         }
     };
     private final UniqueIdGenerator uniqueIdGenerator;
-    private final PostgresqlProperties postgresqlProperties;
+    private final String connectionString;
     private final SQLFormatter sqlFormatter;
     @Getter
     private Transaction transaction;
@@ -393,7 +389,7 @@ class DatabaseOperation {
         final CompletableFuture<Boolean> future = new CompletableFuture<>();
         CompletableFuture.runAsync(() -> {
             MDC.put("transaction.id", getMaskedId(transaction.getId()));
-            try (Connection connection = DriverManager.getConnection(postgresqlProperties.getUrl())) {
+            try (Connection connection = DriverManager.getConnection(connectionString)) {
                 final boolean opened = !connection.isClosed();
                 log.debug("openConnection() -> {}", opened);
                 future.complete(opened);
@@ -868,8 +864,6 @@ class DatabaseOperation {
     }
 
     private void logQuery(final String query) {
-        if (postgresqlProperties.isShowSql()) {
-            log.debug("{}", Objects.toString(sqlFormatter.prettyPrint(query)).trim());
-        }
+        log.debug("{}", Objects.toString(sqlFormatter.prettyPrint(query)).trim());
     }
 }

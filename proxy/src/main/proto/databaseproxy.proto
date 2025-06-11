@@ -27,6 +27,7 @@ message Empty {
 message BeginTransactionConfig {
   int64 timeout = 1;
   bool readOnly = 2;
+  string connectionString = 3;
 }
 
 message Transaction {
@@ -47,6 +48,7 @@ message ExecuteConfig {
   string query = 1;
   repeated Value args = 2;
   int64 timeout = 3;
+  string connectionString = 4;
 }
 
 message ExecuteTxConfig {
@@ -59,6 +61,7 @@ message QueryConfig {
   repeated Value args = 2;
   int64 timeout = 3;
   int64 fetchSize = 4;
+  string connectionString = 5;
 }
 
 message QueryTxConfig {
