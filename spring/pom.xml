@@ -13,6 +13,7 @@
         <project.build.sourceEncoding>${file.encoding}</project.build.sourceEncoding>
         <com.google.protobuf_protoc.version>3.25.8</com.google.protobuf_protoc.version>
         <io.grpc_grpc.version>1.73.0</io.grpc_grpc.version>
+        <org.apache.commons_commons-lang3.version>3.17.0</org.apache.commons_commons-lang3.version>
         <org.awaitility_awaitility.version>4.3.0</org.awaitility_awaitility.version>
         <org.mapstruct_mapstruct.version>1.6.3</org.mapstruct_mapstruct.version>
         <org.projectlombok_lombok.version>1.18.36</org.projectlombok_lombok.version>

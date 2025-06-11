@@ -1,12 +1,10 @@
 package dev.frndpovoa.project1.databaseproxy.spring.repository;
 
 import dev.frndpovoa.project1.databaseproxy.spring.BaseIntTest;
-import dev.frndpovoa.project1.databaseproxy.spring.repository.test.TestBo;
-import dev.frndpovoa.project1.databaseproxy.spring.repository.test.TestRepository;
-import org.junit.jupiter.api.BeforeEach;
+import dev.frndpovoa.project1.databaseproxy.spring.bo.TestBo;
+import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -22,14 +20,10 @@ class TestRepositoryIntTest extends BaseIntTest {
             .name("test1")
             .build();
 
-    @BeforeEach
-    void setUp() {
-        repository.save(TEST_1);
-    }
-
     @Test
     void testCrud() {
-        Optional<TestBo> testBo = repository.findById(1L);
+        repository.saveAndFlush(TEST_1);
+        Optional<TestBo> testBo = repository.findById(TEST_1.getId());
         assertThat(testBo.isPresent())
                 .isTrue();
         assertThat(testBo.get())

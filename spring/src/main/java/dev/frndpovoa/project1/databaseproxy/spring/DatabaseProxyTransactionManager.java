@@ -1,42 +1,23 @@
 package dev.frndpovoa.project1.databaseproxy.spring;
 
-import dev.frndpovoa.project1.databaseproxy.spring.config.DataSourceProperties;
-import dev.frndpovoa.project1.databaseproxy.spring.config.DatabaseProxyProperties;
 import dev.frndpovoa.project1.databaseproxy.proto.BeginTransactionConfig;
-import dev.frndpovoa.project1.databaseproxy.proto.DatabaseProxyGrpc;
-import dev.frndpovoa.project1.databaseproxy.proto.Empty;
 import dev.frndpovoa.project1.databaseproxy.proto.Transaction;
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
-import jakarta.annotation.PreDestroy;
+import dev.frndpovoa.project1.databaseproxy.spring.config.DatabaseProxyDataSourceProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionException;
 import org.springframework.transaction.support.AbstractPlatformTransactionManager;
 import org.springframework.transaction.support.DefaultTransactionStatus;
 
-import java.util.concurrent.TimeUnit;
-
+@Slf4j
 @RequiredArgsConstructor
 public class DatabaseProxyTransactionManager extends AbstractPlatformTransactionManager {
-    private final DatabaseProxyProperties databaseProxyProperties;
-    private final DataSourceProperties dataSourceProperties;
-    private ManagedChannel channel;
-    private DatabaseProxyGrpc.DatabaseProxyBlockingStub blockingStub;
-
-    @PreDestroy
-    public void destroy() throws InterruptedException {
-        channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-    }
+    private final DatabaseProxyDataSourceProperties databaseProxyDataSourceProperties;
 
     @Override
     protected Object doGetTransaction() throws TransactionException {
-        this.channel = ManagedChannelBuilder
-                .forAddress(databaseProxyProperties.getHostname(), databaseProxyProperties.getPort())
-                .usePlaintext()
-                .build();
-        this.blockingStub = DatabaseProxyGrpc
-                .newBlockingStub(channel);
+        log.debug("doGetTransaction()");
         return TransactionHolder.builder().build();
     }
 
@@ -45,9 +26,10 @@ public class DatabaseProxyTransactionManager extends AbstractPlatformTransaction
             final Object object,
             final TransactionDefinition definition
     ) throws TransactionException {
+        log.debug("doBegin()");
         final TransactionHolder transactionHolder = (TransactionHolder) object;
-        final Transaction transaction = blockingStub.beginTransaction(BeginTransactionConfig.newBuilder()
-                .setConnectionString(dataSourceProperties.getUrl())
+        final Transaction transaction = Connection.getDefaultInstance().getBlockingStub().beginTransaction(BeginTransactionConfig.newBuilder()
+                .setConnectionString(databaseProxyDataSourceProperties.getUrl())
                 .setTimeout(definition.getTimeout())
                 .setReadOnly(definition.isReadOnly())
                 .build());
@@ -58,23 +40,17 @@ public class DatabaseProxyTransactionManager extends AbstractPlatformTransaction
     protected void doCommit(
             final DefaultTransactionStatus status
     ) throws TransactionException {
-        try {
-            final TransactionHolder transactionHolder = (TransactionHolder) status.getTransaction();
-            transactionHolder.setTransaction(blockingStub.commitTransaction(transactionHolder.getTransaction()));
-        } finally {
-            blockingStub.closeConnection(Empty.newBuilder().build());
-        }
+        log.debug("doCommit()");
+        final TransactionHolder transactionHolder = (TransactionHolder) status.getTransaction();
+        transactionHolder.setTransaction(Connection.getDefaultInstance().getBlockingStub().commitTransaction(transactionHolder.getTransaction()));
     }
 
     @Override
     protected void doRollback(
             final DefaultTransactionStatus status
     ) throws TransactionException {
-        try {
-            final TransactionHolder transactionHolder = (TransactionHolder) status.getTransaction();
-            transactionHolder.setTransaction(blockingStub.rollbackTransaction(transactionHolder.getTransaction()));
-        } finally {
-            blockingStub.closeConnection(Empty.newBuilder().build());
-        }
+        log.debug("doRollback()");
+        final TransactionHolder transactionHolder = (TransactionHolder) status.getTransaction();
+        transactionHolder.setTransaction(Connection.getDefaultInstance().getBlockingStub().rollbackTransaction(transactionHolder.getTransaction()));
     }
 }

@@ -7,6 +7,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @Getter
 @Setter
 @ConfigurationProperties(prefix = "app.db-proxy-datasource")
-public abstract class DataSourceProperties {
+public class DatabaseProxyDataSourceProperties {
     private String url;
 }
