@@ -2,13 +2,19 @@ package dev.frndpovoa.project1.databaseproxy.test.repository;
 
 import dev.frndpovoa.project1.databaseproxy.test.BaseIntTest;
 import dev.frndpovoa.project1.databaseproxy.test.bo.TestBo;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.context.jdbc.SqlConfig;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Slf4j
+@Transactional
 class TestRepositoryIntTest extends BaseIntTest {
     @Autowired
     private TestRepository repository;
@@ -17,15 +23,31 @@ class TestRepositoryIntTest extends BaseIntTest {
             .id(1L)
             .name("test1")
             .build();
+    public static final TestBo TEST_2 = TestBo.builder()
+            .id(2L)
+            .name("test2")
+            .build();
 
     @Test
+    @Sql(value = "classpath:dev.frndpovoa.project1.databaseproxy.test.repository/TestRepositoryIntTest.sql", config = @SqlConfig(dataSource = "dataSource"))
     void testCrud() {
-        repository.saveAndFlush(TEST_1);
-        Optional<TestBo> testBo = repository.findById(TEST_1.getId());
-        assertThat(testBo.isPresent())
+        repository.save(TEST_2);
+        repository.flush();
+
+        repository.findAll().forEach(it -> log.info("{}", it));
+
+        Optional<TestBo> test1Bo = repository.findById(TEST_1.getId());
+        assertThat(test1Bo.isPresent())
                 .isTrue();
-        assertThat(testBo.get())
+        assertThat(test1Bo.get())
                 .isNotNull()
                 .isEqualTo(TEST_1);
+
+        Optional<TestBo> test2Bo = repository.findById(TEST_2.getId());
+        assertThat(test2Bo.isPresent())
+                .isTrue();
+        assertThat(test2Bo.get())
+                .isNotNull()
+                .isEqualTo(TEST_2);
     }
 }

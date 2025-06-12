@@ -1,6 +1,5 @@
 package dev.frndpovoa.project1.databaseproxy.hibernate;
 
-import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyDataSourceProperties;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyProperties;
 import dev.frndpovoa.project1.databaseproxy.jdbc.Connection;
@@ -19,15 +18,12 @@ public class DatabaseProxyConnectionProvider implements ConnectionProvider {
     @Override
     public java.sql.Connection getConnection() throws SQLException {
         log.debug("getConnection()");
-        final Connection connection = new Connection(databaseProxyProperties, databaseProxyDataSourceProperties);
-        ConnectionHolder.getDefaultInstance().pushConnection(connection);
-        return connection;
+        return new Connection(databaseProxyProperties, databaseProxyDataSourceProperties);
     }
 
     @Override
     public void closeConnection(java.sql.Connection connection) throws SQLException {
         log.debug("closeConnection()");
-        ConnectionHolder.getDefaultInstance().popConnection();
         connection.close();
     }
 

@@ -17,16 +17,15 @@ import java.util.*;
 @Getter
 @Setter
 public class PreparedStatement extends Statement implements java.sql.PreparedStatement {
+    private final Map<Integer, Object> params = new HashMap<>();
     private String sql;
-    private Map<Integer, Object> params = new HashMap<>();
 
     public PreparedStatement(
-            final Connection connection,
             final boolean autoCommit,
             final boolean readOnly,
             final String sql
     ) {
-        super(connection, autoCommit, readOnly);
+        super(autoCommit, readOnly);
         this.sql = sql;
     }
 
@@ -115,9 +114,8 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
                         .build())
                 .build());
         final ResultSet resultSet = new ResultSet(
+                getConnection(),
                 this,
-                getConnection().getBlockingStub(),
-                getConnection().getTransaction(),
                 result
         );
         super.setResultSet(resultSet);

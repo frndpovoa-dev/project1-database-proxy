@@ -16,6 +16,7 @@
         <org.apache.commons_commons-lang3.version>3.17.0</org.apache.commons_commons-lang3.version>
         <org.awaitility_awaitility.version>4.3.0</org.awaitility_awaitility.version>
         <org.mapstruct_mapstruct.version>1.6.3</org.mapstruct_mapstruct.version>
+        <org.postgresql_postgresql.version>42.7.5</org.postgresql_postgresql.version>
         <org.projectlombok_lombok.version>1.18.36</org.projectlombok_lombok.version>
         <spring-boot.version>3.5.0</spring-boot.version>
     </properties>
@@ -84,6 +85,11 @@
             <artifactId>mapstruct-processor</artifactId>
             <version>${org.mapstruct_mapstruct.version}</version>
             <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${org.postgresql_postgresql.version}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

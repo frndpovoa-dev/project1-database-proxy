@@ -1,5 +1,6 @@
 package dev.frndpovoa.project1.databaseproxy.jdbc;
 
+import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
 import dev.frndpovoa.project1.databaseproxy.proto.*;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,6 @@ import java.util.Optional;
 @Setter
 @RequiredArgsConstructor
 public class Statement implements java.sql.Statement {
-    private final Connection connection;
     private final boolean autoCommit;
     private final boolean readOnly;
     private ResultSet resultSet;
@@ -21,6 +21,7 @@ public class Statement implements java.sql.Statement {
 
     @Override
     public ResultSet executeQuery(final String sql) throws SQLException {
+        final Connection connection = ConnectionHolder.getConnection();
         final QueryResult result = autoCommit ?
                 connection.getBlockingStub().query(QueryConfig.newBuilder()
                         .setQuery(sql)
@@ -35,9 +36,8 @@ public class Statement implements java.sql.Statement {
                         .build())
                 .build());
         this.resultSet = new ResultSet(
+                connection,
                 this,
-                connection.getBlockingStub(),
-                connection.getTransaction(),
                 result
         );
         return resultSet;
@@ -45,6 +45,7 @@ public class Statement implements java.sql.Statement {
 
     @Override
     public int executeUpdate(final String sql) throws SQLException {
+        final Connection connection = ConnectionHolder.getConnection();
         final ExecuteResult result = autoCommit ?
                 connection.getBlockingStub().execute(ExecuteConfig.newBuilder()
                         .setQuery(sql)
@@ -63,6 +64,7 @@ public class Statement implements java.sql.Statement {
 
     @Override
     public void close() throws SQLException {
+        final Connection connection = ConnectionHolder.getConnection();
         connection.getBlockingStub().closeStatement(Empty.getDefaultInstance());
     }
 
@@ -193,7 +195,7 @@ public class Statement implements java.sql.Statement {
 
     @Override
     public Connection getConnection() throws SQLException {
-        return connection;
+        return ConnectionHolder.getConnection();
     }
 
     @Override

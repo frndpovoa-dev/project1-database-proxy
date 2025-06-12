@@ -324,9 +324,14 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void closeResultSet(final NextConfig config, final StreamObserver<Empty> responseObserver) {
         try {
-            final DatabaseOperation ops = getDatabaseOperationByTransaction(config.getTransaction())
-                    .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
-            ops.closeResultSet(config);
+            final Optional<DatabaseOperation> opsOptional = getDatabaseOperationByTransaction(config.getTransaction());
+
+            if (opsOptional.isPresent()) {
+                final DatabaseOperation ops = opsOptional
+                        .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
+                ops.closeResultSet(config);
+            }
+
             responseObserver.onNext(Empty.newBuilder().build());
             responseObserver.onCompleted();
         } catch (final Throwable t) {

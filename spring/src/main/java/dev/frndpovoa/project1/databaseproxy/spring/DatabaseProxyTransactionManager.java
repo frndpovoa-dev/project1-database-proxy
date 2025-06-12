@@ -23,8 +23,9 @@ public class DatabaseProxyTransactionManager extends AbstractPlatformTransaction
 
     @Override
     protected Object doGetTransaction() throws TransactionException {
-        log.debug("doGetTransaction()");
-        return dev.frndpovoa.project1.databaseproxy.jta.Transaction.builder().build();
+        dev.frndpovoa.project1.databaseproxy.jta.Transaction transaction = dev.frndpovoa.project1.databaseproxy.jta.Transaction.builder().build();
+        log.debug("doGetTransaction({})", transaction.getId());
+        return transaction;
     }
 
     @Override
@@ -32,14 +33,11 @@ public class DatabaseProxyTransactionManager extends AbstractPlatformTransaction
             final Object object,
             final TransactionDefinition definition
     ) throws TransactionException {
-        log.debug("doBegin()");
-
         boolean createNewTransaction = false;
 
         switch (definition.getPropagationBehavior()) {
             case TransactionDefinition.PROPAGATION_REQUIRED: {
-                createNewTransaction = Optional.ofNullable(ConnectionHolder.getDefaultInstance())
-                        .map(ConnectionHolder::getConnection)
+                createNewTransaction = Optional.ofNullable(ConnectionHolder.getConnection())
                         .map(Connection::getTransaction)
                         .isEmpty();
                 break;
@@ -54,12 +52,14 @@ public class DatabaseProxyTransactionManager extends AbstractPlatformTransaction
             }
         }
 
+        final dev.frndpovoa.project1.databaseproxy.jta.Transaction jdbcTransaction = (dev.frndpovoa.project1.databaseproxy.jta.Transaction) object;
+        log.debug("doBegin({})", jdbcTransaction.getId());
+
         if (createNewTransaction) {
             final Connection connection = new Connection(databaseProxyProperties, databaseProxyDataSourceProperties);
-            ConnectionHolder.getDefaultInstance().pushConnection(connection);
-
-            final dev.frndpovoa.project1.databaseproxy.jta.Transaction jdbcTransaction = (dev.frndpovoa.project1.databaseproxy.jta.Transaction) object;
             connection.pushTransaction(jdbcTransaction);
+
+            ConnectionHolder.pushConnection(connection);
 
             final Transaction protoTransaction = connection
                     .getBlockingStub()
@@ -71,6 +71,11 @@ public class DatabaseProxyTransactionManager extends AbstractPlatformTransaction
 
             jdbcTransaction.setConnection(connection);
             jdbcTransaction.setTransaction(protoTransaction);
+        } else {
+            final Connection connection = ConnectionHolder.getConnection();
+
+            jdbcTransaction.setConnection(connection);
+            jdbcTransaction.setTransaction(connection.getTransaction().getTransaction());
         }
     }
 
@@ -78,23 +83,17 @@ public class DatabaseProxyTransactionManager extends AbstractPlatformTransaction
     protected void doCommit(
             final DefaultTransactionStatus status
     ) throws TransactionException {
-        log.debug("doCommit()");
         final dev.frndpovoa.project1.databaseproxy.jta.Transaction jdbcTransaction = (dev.frndpovoa.project1.databaseproxy.jta.Transaction) status.getTransaction();
-        ConnectionHolder.getDefaultInstance()
-                .getConnection()
-                .getBlockingStub()
-                .commitTransaction(jdbcTransaction.getTransaction());
+        log.debug("doCommit({})", jdbcTransaction.getId());
+        jdbcTransaction.commit();
     }
 
     @Override
     protected void doRollback(
             final DefaultTransactionStatus status
     ) throws TransactionException {
-        log.debug("doRollback()");
         final dev.frndpovoa.project1.databaseproxy.jta.Transaction jdbcTransaction = (dev.frndpovoa.project1.databaseproxy.jta.Transaction) status.getTransaction();
-        ConnectionHolder.getDefaultInstance()
-                .getConnection()
-                .getBlockingStub()
-                .rollbackTransaction(jdbcTransaction.getTransaction());
+        log.debug("doRollback({})", jdbcTransaction.getId());
+        jdbcTransaction.rollback();
     }
 }

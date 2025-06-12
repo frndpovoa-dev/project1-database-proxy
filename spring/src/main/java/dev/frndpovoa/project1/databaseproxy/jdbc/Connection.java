@@ -4,27 +4,36 @@ import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyDataSourceProperties;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyProperties;
 import dev.frndpovoa.project1.databaseproxy.jta.Transaction;
+import dev.frndpovoa.project1.databaseproxy.postgresql.PgDatabaseMetaData;
 import dev.frndpovoa.project1.databaseproxy.proto.DatabaseProxyGrpc;
 import dev.frndpovoa.project1.databaseproxy.proto.Empty;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Stack;
+import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Getter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Connection implements java.sql.Connection {
+    @EqualsAndHashCode.Include
+    private final String id = UUID.randomUUID().toString();
     private final ManagedChannel channel;
     private final DatabaseProxyDataSourceProperties databaseProxyDataSourceProperties;
     private final DatabaseProxyGrpc.DatabaseProxyBlockingStub blockingStub;
     private boolean autoCommit = true;
     private boolean closed = false;
     private boolean readOnly = false;
-
+    private String catalog;
 
     private final Stack<Transaction> transactions = new Stack<>();
 
@@ -36,10 +45,9 @@ public class Connection implements java.sql.Connection {
         transactions.push(transaction);
     }
 
-    public void popTransaction() {
-        transactions.pop();
+    public boolean popTransaction(final Transaction transaction) {
+        return transactions.remove(transaction);
     }
-
 
     public Connection(
             final DatabaseProxyProperties databaseProxyProperties,
@@ -52,13 +60,12 @@ public class Connection implements java.sql.Connection {
         this.blockingStub = DatabaseProxyGrpc
                 .newBlockingStub(channel);
         this.databaseProxyDataSourceProperties = databaseProxyDataSourceProperties;
-        ConnectionHolder.builder().blockingStub(blockingStub).build().pushConnection(this);
+        ConnectionHolder.pushConnection(this);
     }
 
     @Override
     public Statement createStatement() throws SQLException {
         return new Statement(
-                this,
                 autoCommit,
                 readOnly
         );
@@ -67,7 +74,6 @@ public class Connection implements java.sql.Connection {
     @Override
     public PreparedStatement prepareStatement(final String sql) throws SQLException {
         return new PreparedStatement(
-                this,
                 autoCommit,
                 readOnly,
                 sql
@@ -96,27 +102,32 @@ public class Connection implements java.sql.Connection {
 
     @Override
     public void commit() throws SQLException {
+        log.debug("commit({})", id);
         if (getTransaction().isRollbackOnly()) {
             rollback();
         } else {
-            blockingStub.commitTransaction(getTransaction().getTransaction());
+            getTransaction().commit();
         }
     }
 
     @Override
     public void rollback() throws SQLException {
-        blockingStub.rollbackTransaction(getTransaction().getTransaction());
+        log.debug("rollback({})", id);
+        getTransaction().rollback();
     }
 
     @Override
     public void close() throws SQLException {
-        this.closed = true;
-        blockingStub.closeConnection(Empty.getDefaultInstance());
-//        try {
-//            channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
-//        } catch (InterruptedException e) {
-//            throw new SQLException(e);
-//        }
+        log.debug("close({})", id);
+        try {
+            ConnectionHolder.popConnection(this);
+            blockingStub.closeConnection(Empty.getDefaultInstance());
+            channel.shutdown().awaitTermination(60, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            throw new SQLException(e);
+        } finally {
+            this.closed = true;
+        }
     }
 
     @Override
@@ -125,8 +136,8 @@ public class Connection implements java.sql.Connection {
     }
 
     @Override
-    public DatabaseMetaData getMetaData() throws SQLException {
-        return null;
+    public PgDatabaseMetaData getMetaData() throws SQLException {
+        return new PgDatabaseMetaData(this);
     }
 
     @Override
@@ -141,12 +152,12 @@ public class Connection implements java.sql.Connection {
 
     @Override
     public void setCatalog(String catalog) throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet.");
+        this.catalog = catalog;
     }
 
     @Override
     public String getCatalog() throws SQLException {
-        throw new UnsupportedOperationException("Not supported yet.");
+        return catalog;
     }
 
     @Override

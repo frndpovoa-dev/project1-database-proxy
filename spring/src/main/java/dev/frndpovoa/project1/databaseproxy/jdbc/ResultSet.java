@@ -1,5 +1,6 @@
 package dev.frndpovoa.project1.databaseproxy.jdbc;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import dev.frndpovoa.project1.databaseproxy.jta.Transaction;
 import dev.frndpovoa.project1.databaseproxy.proto.*;
 import lombok.RequiredArgsConstructor;
@@ -12,24 +13,51 @@ import java.sql.*;
 import java.sql.Statement;
 import java.util.Calendar;
 import java.util.Map;
+import java.util.Optional;
 
 @RequiredArgsConstructor
 public class ResultSet implements java.sql.ResultSet {
+    private final Connection connection;
     private final Statement statement;
-    private final DatabaseProxyGrpc.DatabaseProxyBlockingStub blockingStub;
-    private final Transaction transaction;
     private final QueryResult queryResult;
     private int row = -1;
     private int col = 0;
 
     protected Value getCurrentRowColValue(final int col) {
         this.col = col;
-        return queryResult.getRows(row).getCols(col);
+        return queryResult.getRows(row).getCols(col - 1);
     }
 
-    protected String getCurrentRowColValueDataAsString(final int col) {
+    protected String getCurrentRowColValueDataAsString(final int col) throws SQLException {
         this.col = col;
-        return getCurrentRowColValue(col).getData().toStringUtf8();
+        final Value value = getCurrentRowColValue(col);
+        try {
+            switch (value.getCode()) {
+                case INT64 -> {
+                    return Long.toString(ValueInt64.parseFrom(value.getData()).getValue());
+                }
+                case FLOAT64 -> {
+                    return Double.toString(ValueFloat64.parseFrom(value.getData()).getValue());
+                }
+                case BOOL -> {
+                    return Boolean.toString(ValueBool.parseFrom(value.getData()).getValue());
+                }
+                case STRING -> {
+                    return ValueString.parseFrom(value.getData()).getValue();
+                }
+                case TIME -> {
+                    return ValueTime.parseFrom(value.getData()).getValue();
+                }
+                case NULL -> {
+                    return null;
+                }
+                default -> {
+                    return null;
+                }
+            }
+        } catch (InvalidProtocolBufferException e) {
+            throw new SQLException(e);
+        }
     }
 
     @Override
@@ -43,9 +71,11 @@ public class ResultSet implements java.sql.ResultSet {
 
     @Override
     public void close() throws SQLException {
-        blockingStub.closeResultSet(NextConfig.newBuilder()
+        connection.getBlockingStub().closeResultSet(NextConfig.newBuilder()
                 .setQueryResultId(queryResult.getId())
-                .setTransaction(transaction.getTransaction())
+                .setTransaction(Optional.ofNullable(connection.getTransaction())
+                        .map(Transaction::getTransaction)
+                        .orElseGet(dev.frndpovoa.project1.databaseproxy.proto.Transaction::getDefaultInstance))
                 .build());
     }
 
