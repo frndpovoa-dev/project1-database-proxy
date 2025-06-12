@@ -1,8 +1,7 @@
-package dev.frndpovoa.project1.databaseproxy.spring.repository;
+package dev.frndpovoa.project1.databaseproxy.test.repository;
 
-import dev.frndpovoa.project1.databaseproxy.spring.BaseIntTest;
-import dev.frndpovoa.project1.databaseproxy.spring.bo.TestBo;
-import jakarta.transaction.Transactional;
+import dev.frndpovoa.project1.databaseproxy.test.BaseIntTest;
+import dev.frndpovoa.project1.databaseproxy.test.bo.TestBo;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -10,7 +9,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Transactional
 class TestRepositoryIntTest extends BaseIntTest {
     @Autowired
     private TestRepository repository;

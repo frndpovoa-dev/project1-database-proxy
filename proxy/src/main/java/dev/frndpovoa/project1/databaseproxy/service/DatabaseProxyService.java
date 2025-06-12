@@ -89,7 +89,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void commitTransaction(final Transaction transaction, final StreamObserver<Transaction> responseObserver) {
         try {
-            final DatabaseOperation ops = getDatabaseOperationByTransaction(transaction);
+            final DatabaseOperation ops = getDatabaseOperationByTransaction(transaction)
+                    .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
 
             if (ops.getTransaction().getStatus() != Transaction.Status.ACTIVE) {
                 responseObserver.onError(Status.INVALID_ARGUMENT
@@ -121,20 +122,31 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void rollbackTransaction(final Transaction transaction, final StreamObserver<Transaction> responseObserver) {
         try {
-            final DatabaseOperation ops = getDatabaseOperationByTransaction(transaction);
+            Transaction result = null;
 
-            if (ops.getTransaction().getStatus() != Transaction.Status.ACTIVE) {
-                responseObserver.onError(Status.INVALID_ARGUMENT
-                        .withDescription("Transaction is not active")
-                        .asRuntimeException());
-                return;
+            final Optional<DatabaseOperation> opsOptional = getDatabaseOperationByTransaction(transaction);
+            if (opsOptional.isPresent()) {
+
+
+                final DatabaseOperation ops = opsOptional.get();
+
+                if (ops.getTransaction().getStatus() != Transaction.Status.ACTIVE) {
+                    responseObserver.onError(Status.INVALID_ARGUMENT
+                            .withDescription("Transaction is not active")
+                            .asRuntimeException());
+                    return;
+                }
+
+                final boolean rolledBack = ops.rollbackTransaction();
+
+                result = ops.getTransaction().toBuilder()
+                        .setStatus(rolledBack ? Transaction.Status.ROLLED_BACK : Transaction.Status.UNKNOWN)
+                        .build();
+            } else {
+                result = Transaction.newBuilder()
+                        .setStatus(Transaction.Status.UNKNOWN)
+                        .build();
             }
-
-            final boolean rolledBack = ops.rollbackTransaction();
-
-            final Transaction result = ops.getTransaction().toBuilder()
-                    .setStatus(rolledBack ? Transaction.Status.ROLLED_BACK : Transaction.Status.UNKNOWN)
-                    .build();
 
             log.debug("rollbackTransaction() -> {}", result.getStatus());
 
@@ -248,7 +260,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void executeTx(final ExecuteTxConfig config, final StreamObserver<ExecuteResult> responseObserver) {
         try {
-            final DatabaseOperation ops = getDatabaseOperationByTransaction(config.getTransaction());
+            final DatabaseOperation ops = getDatabaseOperationByTransaction(config.getTransaction())
+                    .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
             final ExecuteResult result = ops.execute(config.getExecuteConfig());
             responseObserver.onNext(result);
             responseObserver.onCompleted();
@@ -263,7 +276,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void queryTx(final QueryTxConfig config, final StreamObserver<QueryResult> responseObserver) {
         try {
-            final DatabaseOperation ops = getDatabaseOperationByTransaction(config.getTransaction());
+            final DatabaseOperation ops = getDatabaseOperationByTransaction(config.getTransaction())
+                    .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
             QueryResult result = ops.query(config.getQueryConfig());
             result = ops.next(NextConfig.newBuilder()
                     .setTransaction(config.getTransaction())
@@ -282,7 +296,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void next(final NextConfig config, final StreamObserver<QueryResult> responseObserver) {
         try {
-            final DatabaseOperation ops = getDatabaseOperationByTransaction(config.getTransaction());
+            final DatabaseOperation ops = getDatabaseOperationByTransaction(config.getTransaction())
+                    .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
             final QueryResult result = ops.next(config);
             responseObserver.onNext(result);
             responseObserver.onCompleted();
@@ -309,7 +324,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
     @Override
     public void closeResultSet(final NextConfig config, final StreamObserver<Empty> responseObserver) {
         try {
-            final DatabaseOperation ops = getDatabaseOperationByTransaction(config.getTransaction());
+            final DatabaseOperation ops = getDatabaseOperationByTransaction(config.getTransaction())
+                    .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
             ops.closeResultSet(config);
             responseObserver.onNext(Empty.newBuilder().build());
             responseObserver.onCompleted();
@@ -321,11 +337,10 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
         }
     }
 
-    private DatabaseOperation getDatabaseOperationByTransaction(final Transaction transaction) {
+    private Optional<DatabaseOperation> getDatabaseOperationByTransaction(final Transaction transaction) {
         return Optional.ofNullable(transaction)
                 .filter(it -> Objects.equals(it.getNode(), node))
-                .map(it -> transactionMap.get(it.getId()))
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
+                .map(it -> transactionMap.get(it.getId()));
     }
 
     private void deleteDatabaseOperationByTransaction(final Transaction transaction) {

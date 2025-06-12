@@ -1,9 +1,11 @@
-package dev.frndpovoa.project1.databaseproxy.spring;
+package dev.frndpovoa.project1.databaseproxy.jdbc;
 
+import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
+import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyDataSourceProperties;
+import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyProperties;
+import dev.frndpovoa.project1.databaseproxy.jta.Transaction;
 import dev.frndpovoa.project1.databaseproxy.proto.DatabaseProxyGrpc;
 import dev.frndpovoa.project1.databaseproxy.proto.Empty;
-import dev.frndpovoa.project1.databaseproxy.spring.config.DatabaseProxyDataSourceProperties;
-import dev.frndpovoa.project1.databaseproxy.spring.config.DatabaseProxyProperties;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import lombok.Getter;
@@ -11,22 +13,33 @@ import lombok.Getter;
 import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Stack;
 import java.util.concurrent.Executor;
 
 @Getter
 public class Connection implements java.sql.Connection {
-    public static ThreadLocal<Connection> defaultInstance = new InheritableThreadLocal<>();
-
-    public static Connection getDefaultInstance() {
-        return defaultInstance.get();
-    }
-
     private final ManagedChannel channel;
     private final DatabaseProxyDataSourceProperties databaseProxyDataSourceProperties;
     private final DatabaseProxyGrpc.DatabaseProxyBlockingStub blockingStub;
     private boolean autoCommit = true;
     private boolean closed = false;
     private boolean readOnly = false;
+
+
+    private final Stack<Transaction> transactions = new Stack<>();
+
+    public Transaction getTransaction() {
+        return transactions.isEmpty() ? null : transactions.peek();
+    }
+
+    public void pushTransaction(final Transaction transaction) {
+        transactions.push(transaction);
+    }
+
+    public void popTransaction() {
+        transactions.pop();
+    }
+
 
     public Connection(
             final DatabaseProxyProperties databaseProxyProperties,
@@ -39,7 +52,7 @@ public class Connection implements java.sql.Connection {
         this.blockingStub = DatabaseProxyGrpc
                 .newBlockingStub(channel);
         this.databaseProxyDataSourceProperties = databaseProxyDataSourceProperties;
-        defaultInstance.set(this);
+        ConnectionHolder.builder().blockingStub(blockingStub).build().pushConnection(this);
     }
 
     @Override
@@ -47,8 +60,7 @@ public class Connection implements java.sql.Connection {
         return new Statement(
                 this,
                 autoCommit,
-                readOnly,
-                blockingStub
+                readOnly
         );
     }
 
@@ -58,8 +70,7 @@ public class Connection implements java.sql.Connection {
                 this,
                 autoCommit,
                 readOnly,
-                sql,
-                blockingStub
+                sql
         );
     }
 
@@ -85,12 +96,16 @@ public class Connection implements java.sql.Connection {
 
     @Override
     public void commit() throws SQLException {
-        blockingStub.commitTransaction(TransactionHolder.getDefaultInstance().getTransaction());
+        if (getTransaction().isRollbackOnly()) {
+            rollback();
+        } else {
+            blockingStub.commitTransaction(getTransaction().getTransaction());
+        }
     }
 
     @Override
     public void rollback() throws SQLException {
-        blockingStub.rollbackTransaction(TransactionHolder.getDefaultInstance().getTransaction());
+        blockingStub.rollbackTransaction(getTransaction().getTransaction());
     }
 
     @Override

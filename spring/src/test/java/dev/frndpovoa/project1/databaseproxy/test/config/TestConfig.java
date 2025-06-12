@@ -1,11 +1,12 @@
-package dev.frndpovoa.project1.databaseproxy.spring.config;
+package dev.frndpovoa.project1.databaseproxy.test.config;
 
-import dev.frndpovoa.project1.databaseproxy.spring.DatabaseProxyConnectionProvider;
+import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyDataSourceProperties;
+import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyProperties;
+import dev.frndpovoa.project1.databaseproxy.hibernate.DatabaseProxyConnectionProvider;
 import dev.frndpovoa.project1.databaseproxy.spring.DatabaseProxyTransactionManager;
 import org.hibernate.cfg.Environment;
 import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
@@ -14,8 +15,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import java.util.HashMap;
 import java.util.Map;
 
-@Configuration
-public class JpaConfig {
+public class TestConfig {
 
     @Bean
     @Primary
@@ -26,7 +26,7 @@ public class JpaConfig {
         return new DatabaseProxyConnectionProvider(databaseProxyProperties, databaseProxyDataSourceProperties);
     }
 
-    @Bean
+    @Bean("entityManagerFactory")
     @Primary
     public LocalContainerEntityManagerFactoryBean entityManagerFactory(
             final ConnectionProvider connectionProvider
@@ -44,18 +44,19 @@ public class JpaConfig {
 
         final LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
 //        em.setDataSource(dataSource);
-        em.setPackagesToScan("dev.frndpovoa.project1.databaseproxy.spring");
+        em.setPackagesToScan(dev.frndpovoa.project1.databaseproxy.test.bo.Package.class.getPackageName());
         em.setJpaVendorAdapter(vendorAdapter);
         em.setJpaPropertyMap(jpaProperties);
         em.afterPropertiesSet();
         return em;
     }
 
-    @Bean
+    @Bean("transactionManager")
     @Primary
     public PlatformTransactionManager transactionManager(
+            final DatabaseProxyProperties databaseProxyProperties,
             final DatabaseProxyDataSourceProperties databaseProxyDataSourceProperties
     ) {
-        return new DatabaseProxyTransactionManager(databaseProxyDataSourceProperties);
+        return new DatabaseProxyTransactionManager(databaseProxyProperties, databaseProxyDataSourceProperties);
     }
 }

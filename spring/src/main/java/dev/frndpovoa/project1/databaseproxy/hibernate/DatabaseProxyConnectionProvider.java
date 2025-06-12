@@ -1,7 +1,9 @@
-package dev.frndpovoa.project1.databaseproxy.spring;
+package dev.frndpovoa.project1.databaseproxy.hibernate;
 
-import dev.frndpovoa.project1.databaseproxy.spring.config.DatabaseProxyDataSourceProperties;
-import dev.frndpovoa.project1.databaseproxy.spring.config.DatabaseProxyProperties;
+import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
+import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyDataSourceProperties;
+import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyProperties;
+import dev.frndpovoa.project1.databaseproxy.jdbc.Connection;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.engine.jdbc.connections.spi.ConnectionProvider;
@@ -17,12 +19,15 @@ public class DatabaseProxyConnectionProvider implements ConnectionProvider {
     @Override
     public java.sql.Connection getConnection() throws SQLException {
         log.debug("getConnection()");
-        return new Connection(databaseProxyProperties, databaseProxyDataSourceProperties);
+        final Connection connection = new Connection(databaseProxyProperties, databaseProxyDataSourceProperties);
+        ConnectionHolder.getDefaultInstance().pushConnection(connection);
+        return connection;
     }
 
     @Override
     public void closeConnection(java.sql.Connection connection) throws SQLException {
         log.debug("closeConnection()");
+        ConnectionHolder.getDefaultInstance().popConnection();
         connection.close();
     }
 

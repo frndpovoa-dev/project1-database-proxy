@@ -1,4 +1,4 @@
-package dev.frndpovoa.project1.databaseproxy.spring;
+package dev.frndpovoa.project1.databaseproxy.jdbc;
 
 import dev.frndpovoa.project1.databaseproxy.proto.*;
 import lombok.Getter;
@@ -24,10 +24,9 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
             final Connection connection,
             final boolean autoCommit,
             final boolean readOnly,
-            final String sql,
-            final DatabaseProxyGrpc.DatabaseProxyBlockingStub blockingStub
+            final String sql
     ) {
-        super(connection, autoCommit, readOnly, blockingStub);
+        super(connection, autoCommit, readOnly);
         this.sql = sql;
     }
 
@@ -101,14 +100,14 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     @Override
     public java.sql.ResultSet executeQuery() throws SQLException {
         final QueryResult result = isAutoCommit() ?
-                getBlockingStub().query(QueryConfig.newBuilder()
+                getConnection().getBlockingStub().query(QueryConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
                         .setConnectionString(getConnection().getDatabaseProxyDataSourceProperties().getUrl())
                         .addAllArgs(paramAsList())
                         .build())
-                : getBlockingStub().queryTx(QueryTxConfig.newBuilder()
-                .setTransaction(TransactionHolder.getDefaultInstance().getTransaction())
+                : getConnection().getBlockingStub().queryTx(QueryTxConfig.newBuilder()
+                .setTransaction(getConnection().getTransaction().getTransaction())
                 .setQueryConfig(QueryConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
@@ -117,8 +116,8 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
                 .build());
         final ResultSet resultSet = new ResultSet(
                 this,
-                getBlockingStub(),
-                TransactionHolder.getDefaultInstance().getTransaction(),
+                getConnection().getBlockingStub(),
+                getConnection().getTransaction(),
                 result
         );
         super.setResultSet(resultSet);
@@ -128,14 +127,14 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     @Override
     public int executeUpdate() throws SQLException {
         final ExecuteResult result = isAutoCommit() ?
-                getBlockingStub().execute(ExecuteConfig.newBuilder()
+                getConnection().getBlockingStub().execute(ExecuteConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
                         .setConnectionString(getConnection().getDatabaseProxyDataSourceProperties().getUrl())
                         .addAllArgs(paramAsList())
                         .build())
-                : getBlockingStub().executeTx(ExecuteTxConfig.newBuilder()
-                .setTransaction(TransactionHolder.getDefaultInstance().getTransaction())
+                : getConnection().getBlockingStub().executeTx(ExecuteTxConfig.newBuilder()
+                .setTransaction(getConnection().getTransaction().getTransaction())
                 .setExecuteConfig(ExecuteConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
@@ -247,7 +246,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
 
     @Override
     public boolean execute() throws SQLException {
-        return false;
+        return execute(sql);
     }
 
     @Override

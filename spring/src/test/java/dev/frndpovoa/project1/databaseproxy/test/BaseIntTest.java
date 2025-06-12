@@ -1,4 +1,4 @@
-package dev.frndpovoa.project1.databaseproxy.spring;
+package dev.frndpovoa.project1.databaseproxy.test;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.test.context.SpringBootTest;

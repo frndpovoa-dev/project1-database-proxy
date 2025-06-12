@@ -1,4 +1,4 @@
-package dev.frndpovoa.project1.databaseproxy.spring;
+package dev.frndpovoa.project1.databaseproxy.jdbc;
 
 import lombok.RequiredArgsConstructor;
 

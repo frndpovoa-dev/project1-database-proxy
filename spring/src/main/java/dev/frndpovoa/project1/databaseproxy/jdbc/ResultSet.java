@@ -1,5 +1,6 @@
-package dev.frndpovoa.project1.databaseproxy.spring;
+package dev.frndpovoa.project1.databaseproxy.jdbc;
 
+import dev.frndpovoa.project1.databaseproxy.jta.Transaction;
 import dev.frndpovoa.project1.databaseproxy.proto.*;
 import lombok.RequiredArgsConstructor;
 
@@ -44,7 +45,7 @@ public class ResultSet implements java.sql.ResultSet {
     public void close() throws SQLException {
         blockingStub.closeResultSet(NextConfig.newBuilder()
                 .setQueryResultId(queryResult.getId())
-                .setTransaction(transaction)
+                .setTransaction(transaction.getTransaction())
                 .build());
     }
 

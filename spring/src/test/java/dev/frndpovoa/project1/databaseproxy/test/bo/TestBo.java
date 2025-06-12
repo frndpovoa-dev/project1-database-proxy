@@ -1,4 +1,4 @@
-package dev.frndpovoa.project1.databaseproxy.spring.bo;
+package dev.frndpovoa.project1.databaseproxy.test.bo;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;

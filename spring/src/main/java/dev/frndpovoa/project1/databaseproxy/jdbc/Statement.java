@@ -1,4 +1,4 @@
-package dev.frndpovoa.project1.databaseproxy.spring;
+package dev.frndpovoa.project1.databaseproxy.jdbc;
 
 import dev.frndpovoa.project1.databaseproxy.proto.*;
 import lombok.Getter;
@@ -16,20 +16,19 @@ public class Statement implements java.sql.Statement {
     private final Connection connection;
     private final boolean autoCommit;
     private final boolean readOnly;
-    private final DatabaseProxyGrpc.DatabaseProxyBlockingStub blockingStub;
     private ResultSet resultSet;
     private Long timeout;
 
     @Override
     public ResultSet executeQuery(final String sql) throws SQLException {
         final QueryResult result = autoCommit ?
-                blockingStub.query(QueryConfig.newBuilder()
+                connection.getBlockingStub().query(QueryConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
                         .setConnectionString(connection.getDatabaseProxyDataSourceProperties().getUrl())
                         .build())
-                : blockingStub.queryTx(QueryTxConfig.newBuilder()
-                .setTransaction(TransactionHolder.getDefaultInstance().getTransaction())
+                : connection.getBlockingStub().queryTx(QueryTxConfig.newBuilder()
+                .setTransaction(connection.getTransaction().getTransaction())
                 .setQueryConfig(QueryConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
@@ -37,8 +36,8 @@ public class Statement implements java.sql.Statement {
                 .build());
         this.resultSet = new ResultSet(
                 this,
-                blockingStub,
-                TransactionHolder.getDefaultInstance().getTransaction(),
+                connection.getBlockingStub(),
+                connection.getTransaction(),
                 result
         );
         return resultSet;
@@ -47,13 +46,13 @@ public class Statement implements java.sql.Statement {
     @Override
     public int executeUpdate(final String sql) throws SQLException {
         final ExecuteResult result = autoCommit ?
-                blockingStub.execute(ExecuteConfig.newBuilder()
+                connection.getBlockingStub().execute(ExecuteConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
                         .setConnectionString(connection.getDatabaseProxyDataSourceProperties().getUrl())
                         .build())
-                : blockingStub.executeTx(ExecuteTxConfig.newBuilder()
-                .setTransaction(TransactionHolder.getDefaultInstance().getTransaction())
+                : connection.getBlockingStub().executeTx(ExecuteTxConfig.newBuilder()
+                .setTransaction(connection.getTransaction().getTransaction())
                 .setExecuteConfig(ExecuteConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
@@ -64,7 +63,7 @@ public class Statement implements java.sql.Statement {
 
     @Override
     public void close() throws SQLException {
-        blockingStub.closeStatement(Empty.getDefaultInstance());
+        connection.getBlockingStub().closeStatement(Empty.getDefaultInstance());
     }
 
     @Override

@@ -1,4 +1,4 @@
-package dev.frndpovoa.project1.databaseproxy.spring.config;
+package dev.frndpovoa.project1.databaseproxy.config;
 
 import lombok.Getter;
 import lombok.Setter;
