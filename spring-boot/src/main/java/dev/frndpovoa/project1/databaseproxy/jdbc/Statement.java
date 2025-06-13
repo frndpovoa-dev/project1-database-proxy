@@ -14,22 +14,36 @@ import java.util.Optional;
 @Setter
 @RequiredArgsConstructor
 public class Statement implements java.sql.Statement {
-    private final boolean autoCommit;
-    private final boolean readOnly;
     private ResultSet resultSet;
-    private Long timeout;
+    private Long timeout = 60_000L;
+
+    protected void beginTransaction(
+            final Connection connection
+    ) throws SQLException {
+        if (!connection.getAutoCommit() && connection.getTransaction() == null) {
+            final Transaction transaction = connection.getBlockingStub()
+                    .beginTransaction(BeginTransactionConfig.newBuilder()
+                            .setConnectionString(connection.getDatabaseProxyDataSourceProperties().getUrl())
+                            .setTimeout(timeout)
+                            .setReadOnly(connection.isReadOnly())
+                            .build());
+            connection.pushTransaction(transaction);
+        }
+    }
 
     @Override
     public ResultSet executeQuery(final String sql) throws SQLException {
         final Connection connection = ConnectionHolder.getConnection();
-        final QueryResult result = autoCommit ?
+        beginTransaction(connection);
+
+        final QueryResult result = connection.getTransaction() == null ?
                 connection.getBlockingStub().query(QueryConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
                         .setConnectionString(connection.getDatabaseProxyDataSourceProperties().getUrl())
                         .build())
                 : connection.getBlockingStub().queryTx(QueryTxConfig.newBuilder()
-                .setTransaction(connection.getTransaction().getTransaction())
+                .setTransaction(connection.getTransaction())
                 .setQueryConfig(QueryConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
@@ -46,14 +60,16 @@ public class Statement implements java.sql.Statement {
     @Override
     public int executeUpdate(final String sql) throws SQLException {
         final Connection connection = ConnectionHolder.getConnection();
-        final ExecuteResult result = autoCommit ?
+        beginTransaction(connection);
+
+        final ExecuteResult result = connection.getTransaction() == null ?
                 connection.getBlockingStub().execute(ExecuteConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
                         .setConnectionString(connection.getDatabaseProxyDataSourceProperties().getUrl())
                         .build())
                 : connection.getBlockingStub().executeTx(ExecuteTxConfig.newBuilder()
-                .setTransaction(connection.getTransaction().getTransaction())
+                .setTransaction(connection.getTransaction())
                 .setExecuteConfig(ExecuteConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))

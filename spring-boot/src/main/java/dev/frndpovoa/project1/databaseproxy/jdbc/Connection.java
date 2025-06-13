@@ -3,10 +3,10 @@ package dev.frndpovoa.project1.databaseproxy.jdbc;
 import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyDataSourceProperties;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyProperties;
-import dev.frndpovoa.project1.databaseproxy.jta.Transaction;
 import dev.frndpovoa.project1.databaseproxy.postgresql.PgDatabaseMetaData;
 import dev.frndpovoa.project1.databaseproxy.proto.DatabaseProxyGrpc;
 import dev.frndpovoa.project1.databaseproxy.proto.Empty;
+import dev.frndpovoa.project1.databaseproxy.proto.Transaction;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import lombok.EqualsAndHashCode;
@@ -65,19 +65,12 @@ public class Connection implements java.sql.Connection {
 
     @Override
     public Statement createStatement() throws SQLException {
-        return new Statement(
-                autoCommit,
-                readOnly
-        );
+        return new Statement();
     }
 
     @Override
     public PreparedStatement prepareStatement(final String sql) throws SQLException {
-        return new PreparedStatement(
-                autoCommit,
-                readOnly,
-                sql
-        );
+        return new PreparedStatement(sql);
     }
 
     @Override
@@ -103,17 +96,15 @@ public class Connection implements java.sql.Connection {
     @Override
     public void commit() throws SQLException {
         log.debug("commit({})", id);
-        if (getTransaction().isRollbackOnly()) {
-            rollback();
-        } else {
-            getTransaction().commit();
-        }
+        popTransaction(getTransaction());
+        getBlockingStub().commitTransaction(getTransaction());
     }
 
     @Override
     public void rollback() throws SQLException {
         log.debug("rollback({})", id);
-        getTransaction().rollback();
+        popTransaction(getTransaction());
+        getBlockingStub().rollbackTransaction(getTransaction());
     }
 
     @Override
@@ -122,7 +113,7 @@ public class Connection implements java.sql.Connection {
         try {
             ConnectionHolder.popConnection(this);
             blockingStub.closeConnection(Empty.getDefaultInstance());
-            channel.shutdown().awaitTermination(60, TimeUnit.SECONDS);
+            channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             throw new SQLException(e);
         } finally {

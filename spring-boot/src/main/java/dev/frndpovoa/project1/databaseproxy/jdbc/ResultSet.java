@@ -1,7 +1,6 @@
 package dev.frndpovoa.project1.databaseproxy.jdbc;
 
 import com.google.protobuf.InvalidProtocolBufferException;
-import dev.frndpovoa.project1.databaseproxy.jta.Transaction;
 import dev.frndpovoa.project1.databaseproxy.proto.*;
 import lombok.RequiredArgsConstructor;
 
@@ -74,7 +73,6 @@ public class ResultSet implements java.sql.ResultSet {
         connection.getBlockingStub().closeResultSet(NextConfig.newBuilder()
                 .setQueryResultId(queryResult.getId())
                 .setTransaction(Optional.ofNullable(connection.getTransaction())
-                        .map(Transaction::getTransaction)
                         .orElseGet(dev.frndpovoa.project1.databaseproxy.proto.Transaction::getDefaultInstance))
                 .build());
     }

@@ -11,6 +11,6 @@
     </properties>
     <modules>
         <module>proxy</module>
-        <module>spring</module>
+        <module>spring-boot</module>
     </modules>
 </project>

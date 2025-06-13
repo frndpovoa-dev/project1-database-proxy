@@ -2,12 +2,12 @@ package dev.frndpovoa.project1.databaseproxy.test.repository;
 
 import dev.frndpovoa.project1.databaseproxy.test.BaseIntTest;
 import dev.frndpovoa.project1.databaseproxy.test.bo.TestBo;
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.SqlConfig;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 

@@ -21,11 +21,8 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     private String sql;
 
     public PreparedStatement(
-            final boolean autoCommit,
-            final boolean readOnly,
             final String sql
     ) {
-        super(autoCommit, readOnly);
         this.sql = sql;
     }
 
@@ -98,7 +95,8 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
 
     @Override
     public java.sql.ResultSet executeQuery() throws SQLException {
-        final QueryResult result = isAutoCommit() ?
+        beginTransaction(getConnection());
+        final QueryResult result = getConnection().getTransaction() == null ?
                 getConnection().getBlockingStub().query(QueryConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
@@ -106,7 +104,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
                         .addAllArgs(paramAsList())
                         .build())
                 : getConnection().getBlockingStub().queryTx(QueryTxConfig.newBuilder()
-                .setTransaction(getConnection().getTransaction().getTransaction())
+                .setTransaction(getConnection().getTransaction())
                 .setQueryConfig(QueryConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
@@ -124,7 +122,8 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
 
     @Override
     public int executeUpdate() throws SQLException {
-        final ExecuteResult result = isAutoCommit() ?
+        beginTransaction(getConnection());
+        final ExecuteResult result = getConnection().getTransaction() == null ?
                 getConnection().getBlockingStub().execute(ExecuteConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
@@ -132,7 +131,7 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
                         .addAllArgs(paramAsList())
                         .build())
                 : getConnection().getBlockingStub().executeTx(ExecuteTxConfig.newBuilder()
-                .setTransaction(getConnection().getTransaction().getTransaction())
+                .setTransaction(getConnection().getTransaction())
                 .setExecuteConfig(ExecuteConfig.newBuilder()
                         .setQuery(sql)
                         .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))

@@ -3,19 +3,18 @@ package dev.frndpovoa.project1.databaseproxy.test.config;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyDataSourceProperties;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyProperties;
 import dev.frndpovoa.project1.databaseproxy.jdbc.DataSource;
-import dev.frndpovoa.project1.databaseproxy.spring.DatabaseProxyTransactionManager;
+import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.cfg.Environment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
-import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class TestConfig {
-
 
     @Bean("dataSource")
     @Primary
@@ -52,15 +51,14 @@ public class TestConfig {
 
     @Bean("transactionManager")
     @Primary
-    public PlatformTransactionManager transactionManager(
-            final DatabaseProxyProperties databaseProxyProperties,
-            final DatabaseProxyDataSourceProperties databaseProxyDataSourceProperties
-//            final EntityManagerFactory entityManagerFactory,
-//            final DataSource dataSource
+    public JpaTransactionManager transactionManager(
+            final EntityManagerFactory entityManagerFactory,
+            final DataSource dataSource
     ) {
-        final DatabaseProxyTransactionManager transactionManager = new DatabaseProxyTransactionManager(databaseProxyProperties, databaseProxyDataSourceProperties);
-//        transactionManager.setDataSource(dataSource);
-//        transactionManager.setEntityManagerFactory(entityManagerFactory);
+        JpaTransactionManager transactionManager = new JpaTransactionManager();
+        transactionManager.setDataSource(dataSource);
+        transactionManager.setEntityManagerFactory(entityManagerFactory);
+        transactionManager.afterPropertiesSet();
         return transactionManager;
     }
 }
