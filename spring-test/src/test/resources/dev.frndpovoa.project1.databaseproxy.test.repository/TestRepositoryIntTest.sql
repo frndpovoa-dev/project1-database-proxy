@@ -1,1 +1,0 @@
-insert into test (id, name) values (1, 'test1');

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.util.MultiValueMap;
@@ -78,13 +79,16 @@ class TestControllerIntTest extends BaseIntTest {
     @Test
     @SuppressWarnings({"unchecked"})
     void testApiUsingSharedTransaction() {
+        final ParameterizedTypeReference<List<TestDto>> listTypeReference = new ParameterizedTypeReference<>() {
+        };
+
         log.debug("List before insert using tx 1");
         log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
-                MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx1TransactionId))), List.class).getBody());
+                MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx1TransactionId))), listTypeReference).getBody());
 
         log.debug("List before insert using tx 2");
         log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
-                MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx2TransactionId))), List.class).getBody());
+                MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx2TransactionId))), listTypeReference).getBody());
 
         log.debug("Insert using tx 1");
         log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/insert", HttpMethod.POST, new HttpEntity<>(
@@ -93,11 +97,11 @@ class TestControllerIntTest extends BaseIntTest {
 
         log.debug("List after insert using tx 1");
         log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
-                MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx1TransactionId))), List.class).getBody());
+                MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx1TransactionId))), listTypeReference).getBody());
 
         log.debug("List after insert using tx 2");
         log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
-                MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx2TransactionId))), List.class).getBody());
+                MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx2TransactionId))), listTypeReference).getBody());
 
 
     }
