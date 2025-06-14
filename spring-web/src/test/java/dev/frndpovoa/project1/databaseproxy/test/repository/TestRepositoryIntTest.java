@@ -48,10 +48,13 @@ class TestRepositoryIntTest extends BaseIntTest {
         final String transactionId = transaction.getId() + "@" + transaction.getNode();
         log.debug("Tx transactionId({})", transactionId);
 
-        log.debug("Insert and flush");
+        log.debug("Read before insert using JPA");
+        log.debug("{}", repository.findAll());
+
+        log.debug("Insert");
         log.debug("{}", repository.saveAndFlush(TEST_2));
 
-        log.debug("List after insert using JPA");
+        log.debug("Read after insert using JPA");
         log.debug("{}", repository.findAll());
 
         log.debug("List after insert using API");

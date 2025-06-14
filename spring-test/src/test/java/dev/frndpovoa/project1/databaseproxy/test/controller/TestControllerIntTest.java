@@ -82,11 +82,11 @@ class TestControllerIntTest extends BaseIntTest {
         final ParameterizedTypeReference<List<TestDto>> listTypeReference = new ParameterizedTypeReference<>() {
         };
 
-        log.debug("List before insert using tx 1");
+        log.debug("Read before insert using tx 1");
         log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx1TransactionId))), listTypeReference).getBody());
 
-        log.debug("List before insert using tx 2");
+        log.debug("Read before insert using tx 2");
         log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx2TransactionId))), listTypeReference).getBody());
 
@@ -95,11 +95,11 @@ class TestControllerIntTest extends BaseIntTest {
                 TestDto.builder().id(2025L).name("Hello World!").build(),
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx1TransactionId))), TestDto.class).getBody());
 
-        log.debug("List after insert using tx 1");
+        log.debug("Read after insert using tx 1");
         log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx1TransactionId))), listTypeReference).getBody());
 
-        log.debug("List after insert using tx 2");
+        log.debug("Read after insert using tx 2");
         log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx2TransactionId))), listTypeReference).getBody());
 
