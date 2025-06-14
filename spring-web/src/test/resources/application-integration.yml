@@ -1,0 +1,14 @@
+app:
+  db-proxy:
+    hostname: localhost
+    port: 9090
+  db-proxy-datasource:
+    url: jdbc:postgresql://localhost:5432/postgres?user=postgres&password=postgres
+
+server:
+  port: 8080
+
+logging:
+  level:
+    root: info
+    dev.frndpovoa.project1: debug

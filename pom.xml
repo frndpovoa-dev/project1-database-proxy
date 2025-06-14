@@ -11,6 +11,8 @@
     </properties>
     <modules>
         <module>proxy</module>
-        <module>spring-boot</module>
+        <module>proxy-lib</module>
+        <module>spring-test</module>
+        <module>spring-web</module>
     </modules>
 </project>
