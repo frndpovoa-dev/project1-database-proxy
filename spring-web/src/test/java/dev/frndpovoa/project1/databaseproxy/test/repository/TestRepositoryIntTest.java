@@ -4,7 +4,6 @@ import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
 import dev.frndpovoa.project1.databaseproxy.proto.Transaction;
 import dev.frndpovoa.project1.databaseproxy.test.BaseIntTest;
 import dev.frndpovoa.project1.databaseproxy.test.bo.TestBo;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +13,7 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.SqlConfig;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@Transactional
+@Transactional(timeout = 60_000)
 class TestRepositoryIntTest extends BaseIntTest {
     @Autowired
     private TestRepository repository;
@@ -57,10 +57,14 @@ class TestRepositoryIntTest extends BaseIntTest {
         log.debug("Read after insert using JPA");
         log.debug("{}", repository.findAll());
 
-        log.debug("List after insert using API");
-        log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
-                        MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", transactionId))), new ParameterizedTypeReference<List<TestBo>>() {
-                }).getBody());
+        log.debug("Read after insert using API");
+        final List<TestBo> apiResponse = restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
+                MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", transactionId))), new ParameterizedTypeReference<List<TestBo>>() {
+        }).getBody();
+        log.debug("{}", apiResponse);
+        assertThat(apiResponse)
+                .isNotEmpty()
+                .containsExactly(TEST_1, TEST_2);
 
         Optional<TestBo> test1Bo = repository.findById(TEST_1.getId());
         assertThat(test1Bo.isPresent())

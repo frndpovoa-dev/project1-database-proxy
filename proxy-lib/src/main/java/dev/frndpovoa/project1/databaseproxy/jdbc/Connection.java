@@ -80,6 +80,7 @@ public class Connection implements java.sql.Connection {
                 .newBlockingStub(channel);
         this.databaseProxyDataSourceProperties = databaseProxyDataSourceProperties;
         ConnectionHolder.pushConnection(this);
+        log.debug("open({})", id);
     }
 
     @Override

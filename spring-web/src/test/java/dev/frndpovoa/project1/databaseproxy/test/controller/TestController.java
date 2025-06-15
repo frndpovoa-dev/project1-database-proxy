@@ -13,16 +13,16 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping(path = "/api/v1/test")
-@Transactional
+@Transactional(timeout = 60_000)
 @RequiredArgsConstructor
 public class TestController {
+//    private final TestService service;
     private final TestRepository repository;
 
     @GetMapping(path = "/list")
     public List<TestBo> list(
             @RequestHeader("X-Transaction-Id") final String transactionId
     ) throws Exception {
-        log.debug("List using transactionId({})", transactionId);
         ConnectionHolder.getConnection().joinSharedTransaction(transactionId);
         return repository.findAll();
     }
@@ -30,11 +30,11 @@ public class TestController {
     @PostMapping(path = "/insert")
     public TestBo step2(
             @RequestHeader("X-Transaction-Id") final String transactionId,
-            @RequestBody final TestBo test
+            @RequestBody final TestBo testBo
     ) throws Exception {
-        log.debug("Insert using transactionId({})", transactionId);
         ConnectionHolder.getConnection().joinSharedTransaction(transactionId);
-        repository.save(test);
-        return test;
+        repository.save(testBo);
+//        service.save(testBo);
+        return testBo;
     }
 }
