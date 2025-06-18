@@ -1,16 +1,32 @@
 package dev.frndpovoa.project1.databaseproxy.postgresql;
 
+/*-
+ * #%L
+ * database-proxy-lib
+ * %%
+ * Copyright (C) 2025 Fernando Lemes Povoa
+ * %%
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * #L%
+ */
+
 import dev.frndpovoa.project1.databaseproxy.jdbc.Connection;
 import dev.frndpovoa.project1.databaseproxy.jdbc.Statement;
 import lombok.RequiredArgsConstructor;
-import org.postgresql.Driver;
-import org.postgresql.util.*;
 
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
 import java.sql.SQLException;
-
-import static org.postgresql.util.internal.Nullness.castNonNull;
 
 @RequiredArgsConstructor
 public class PgDatabaseMetaData implements java.sql.DatabaseMetaData {
@@ -19,12 +35,12 @@ public class PgDatabaseMetaData implements java.sql.DatabaseMetaData {
 
     @Override
     public boolean allProceduresAreCallable() throws SQLException {
-        return true; // For now...
+        return true;
     }
 
     @Override
     public boolean allTablesAreSelectable() throws SQLException {
-        return true; // For now...
+        return true;
     }
 
     @Override
@@ -216,16 +232,15 @@ public class PgDatabaseMetaData implements java.sql.DatabaseMetaData {
                 stmt = connection.createStatement();
                 rs = stmt.executeQuery(sql);
                 if (!rs.next()) {
-                    throw new PSQLException(GT.tr("Unable to find keywords in the system catalogs."),
-                            PSQLState.UNEXPECTED_ERROR);
+                    throw new SQLException("Unable to find keywords in the system catalogs.");
                 }
                 keywords = rs.getString(1);
             } finally {
-                JdbcBlackHole.close(rs);
-                JdbcBlackHole.close(stmt);
+                rs.close();
+                stmt.close();
             }
 
-            this.keywords = castNonNull(keywords);
+            this.keywords = keywords;
         }
         return keywords;
     }
@@ -924,7 +939,7 @@ public class PgDatabaseMetaData implements java.sql.DatabaseMetaData {
 
     @Override
     public RowIdLifetime getRowIdLifetime() throws SQLException {
-        throw Driver.notImplemented(this.getClass(), "getRowIdLifetime()");
+        throw new SQLException("getRowIdLifetime()");
     }
 
     @Override
@@ -970,7 +985,7 @@ public class PgDatabaseMetaData implements java.sql.DatabaseMetaData {
     public java.sql.ResultSet getPseudoColumns(String catalog, String schemaPattern,
                                                String tableNamePattern, String columnNamePattern)
             throws SQLException {
-        throw org.postgresql.Driver.notImplemented(this.getClass(),
+        throw new SQLException(
                 "getPseudoColumns(String, String, String, String)");
     }
 
@@ -1006,7 +1021,7 @@ public class PgDatabaseMetaData implements java.sql.DatabaseMetaData {
     public java.sql.ResultSet getSuperTypes(String catalog, String schemaPattern,
                                             String typeNamePattern)
             throws SQLException {
-        throw org.postgresql.Driver.notImplemented(this.getClass(),
+        throw new SQLException(
                 "getSuperTypes(String,String,String)");
     }
 
@@ -1014,14 +1029,14 @@ public class PgDatabaseMetaData implements java.sql.DatabaseMetaData {
     public java.sql.ResultSet getSuperTables(String catalog, String schemaPattern,
                                              String tableNamePattern)
             throws SQLException {
-        throw org.postgresql.Driver.notImplemented(this.getClass(),
+        throw new SQLException(
                 "getSuperTables(String,String,String,String)");
     }
 
     @Override
     public java.sql.ResultSet getAttributes(String catalog, String schemaPattern,
                                             String typeNamePattern, String attributeNamePattern) throws SQLException {
-        throw Driver.notImplemented(this.getClass(),
+        throw new SQLException(
                 "getAttributes(String,String,String,String)");
     }
 
@@ -1048,12 +1063,12 @@ public class PgDatabaseMetaData implements java.sql.DatabaseMetaData {
 
     @Override
     public int getJDBCMajorVersion() {
-        return DriverInfo.JDBC_MAJOR_VERSION;
+        return 0;
     }
 
     @Override
     public int getJDBCMinorVersion() {
-        return DriverInfo.JDBC_MINOR_VERSION;
+        return 0;
     }
 
     @Override
