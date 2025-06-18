@@ -1,0 +1,34 @@
+name: Promote
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - version-pr.txt
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: google-github-actions/auth@v1
+        with:
+          credentials_json: '${{secrets.GCP_CREDENTIALS}}'
+      - uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: '495.0.0'
+          install_components: core
+      - run: 'gcloud info'
+      - run: 'gcloud auth configure-docker us-east1-docker.pkg.dev'
+      - run: echo "APP_IMAGE=us-east1-docker.pkg.dev/pr-frndpovoadev-project1/project1-docker/database-proxy" >> $GITHUB_ENV
+      - run: echo "PR_VERSION=$(cat version-pr.txt | tr -d "[:space:]")" >> $GITHUB_ENV
+      - run: echo "QA_VERSION=$(cat version-qa.txt | tr -d "[:space:]")" >> $GITHUB_ENV
+      - run: 'docker pull $APP_IMAGE:$QA_VERSION'
+      - run: 'docker tag $APP_IMAGE:$QA_VERSION $APP_IMAGE:$PR_VERSION'
+      - run: 'docker push $APP_IMAGE:$PR_VERSION'
+      - env:
+          GITHUB_TOKEN: ${{secrets.AUTH_TOKEN_WORKFLOW_DISPATCH}}
+        run: |
+          gh workflow run deploy.yaml \
+            --repo frndpovoa-dev/project1-project1-argocd \
+            --ref main \
+            --raw-field app1-name=pr-database-proxy \
+            --raw-field app1-version=$PR_VERSION
