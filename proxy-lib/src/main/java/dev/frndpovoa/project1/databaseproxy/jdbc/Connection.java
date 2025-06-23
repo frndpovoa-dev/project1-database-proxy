@@ -34,10 +34,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.sql.*;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Stack;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -59,6 +56,12 @@ public class Connection implements java.sql.Connection {
     private String catalog;
 
     private final Stack<Transaction> transactions = new Stack<>();
+
+    public String getTransactionId() {
+        return Optional.ofNullable(getTransaction())
+                .map(transaction -> transaction.getId() + "@" + transaction.getNode())
+                .orElse(null);
+    }
 
     public Transaction getTransaction() {
         return transactions.isEmpty() ? null : transactions.peek();
