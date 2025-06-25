@@ -21,7 +21,6 @@ package dev.frndpovoa.project1.databaseproxy.test.repository;
  */
 
 import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
-import dev.frndpovoa.project1.databaseproxy.proto.Transaction;
 import dev.frndpovoa.project1.databaseproxy.test.BaseIntTest;
 import dev.frndpovoa.project1.databaseproxy.test.bo.TestBo;
 import lombok.extern.slf4j.Slf4j;
@@ -64,8 +63,7 @@ class TestRepositoryIntTest extends BaseIntTest {
     @Test
     @Sql(value = "classpath:dev.frndpovoa.project1.databaseproxy.test.repository/TestRepositoryIntTest.sql", config = @SqlConfig(dataSource = "dataSource"))
     void testJpaUsingSharedTransaction() {
-        final Transaction transaction = ConnectionHolder.getConnection().getTransaction();
-        final String transactionId = transaction.getId() + "@" + transaction.getNode();
+        final String transactionId = ConnectionHolder.getConnection().getTransactionId();
         log.debug("Tx transactionId({})", transactionId);
 
         log.debug("Read before insert using JPA");
