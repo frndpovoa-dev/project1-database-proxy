@@ -49,7 +49,15 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     protected Value nullSafeArgToValue(final Object value) {
         return Optional.ofNullable(value)
                 .map(it -> {
-                    if (it instanceof Integer v) {
+                    if (it instanceof Short v) {
+                        return Value.newBuilder()
+                                .setCode(ValueCode.INT32)
+                                .setData(ValueInt32.newBuilder()
+                                        .setValue(v)
+                                        .build()
+                                        .toByteString())
+                                .build();
+                    } else if (it instanceof Integer v) {
                         return Value.newBuilder()
                                 .setCode(ValueCode.INT32)
                                 .setData(ValueInt32.newBuilder()

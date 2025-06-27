@@ -808,7 +808,7 @@ class DatabaseOperation {
                             )
                             .build();
                 }
-                case INTEGER -> {
+                case SMALLINT, INTEGER -> {
                     return Value.newBuilder()
                             .setCode(ValueCode.INT32)
                             .setData(ValueInt32.newBuilder()
