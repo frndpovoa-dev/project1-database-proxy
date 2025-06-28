@@ -103,24 +103,24 @@ class TestControllerIntTest extends BaseIntTest {
         };
 
         log.debug("Read before insert using tx 1");
-        log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
+        log.debug("{}", restTemplate.exchange("http://localhost:9091/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx1TransactionId))), listTypeReference).getBody());
 
         log.debug("Read before insert using tx 2");
-        log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
+        log.debug("{}", restTemplate.exchange("http://localhost:9091/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx2TransactionId))), listTypeReference).getBody());
 
         log.debug("Insert using tx 1");
-        log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/insert", HttpMethod.POST, new HttpEntity<>(
+        log.debug("{}", restTemplate.exchange("http://localhost:9091/api/v1/test/insert", HttpMethod.POST, new HttpEntity<>(
                 TestDto.builder().id(2025L).name("Hello World!").build(),
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx1TransactionId))), TestDto.class).getBody());
 
         log.debug("Read after insert using tx 1");
-        log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
+        log.debug("{}", restTemplate.exchange("http://localhost:9091/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx1TransactionId))), listTypeReference).getBody());
 
         log.debug("Read after insert using tx 2");
-        log.debug("{}", restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
+        log.debug("{}", restTemplate.exchange("http://localhost:9091/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", tx2TransactionId))), listTypeReference).getBody());
 
 

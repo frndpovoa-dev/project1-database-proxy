@@ -41,8 +41,10 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
     private String sql;
 
     public PreparedStatement(
+            final Integer defaultQueryTimeout,
             final String sql
     ) {
+        super(defaultQueryTimeout);
         this.sql = sql;
     }
 
@@ -123,19 +125,18 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
 
     @Override
     public java.sql.ResultSet executeQuery() throws SQLException {
-        beginTransaction(getConnection());
-        final QueryResult result = getConnection().getTransaction() == null ?
+        final QueryResult result = getConnection().getAutoCommit() ?
                 getConnection().getBlockingStub().query(QueryConfig.newBuilder()
                         .setQuery(sql)
-                        .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
+                        .setTimeout(getQueryTimeout())
                         .setConnectionString(getConnection().getDatabaseProxyDataSourceProperties().getUrl())
                         .addAllArgs(paramAsList())
                         .build())
                 : getConnection().getBlockingStub().queryTx(QueryTxConfig.newBuilder()
-                .setTransaction(getConnection().getTransaction())
+                .setTransaction(getConnection().getTransaction(true))
                 .setQueryConfig(QueryConfig.newBuilder()
                         .setQuery(sql)
-                        .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
+                        .setTimeout(getQueryTimeout())
                         .addAllArgs(paramAsList())
                         .build())
                 .build());
@@ -150,19 +151,18 @@ public class PreparedStatement extends Statement implements java.sql.PreparedSta
 
     @Override
     public int executeUpdate() throws SQLException {
-        beginTransaction(getConnection());
-        final ExecuteResult result = getConnection().getTransaction() == null ?
+        final ExecuteResult result = getConnection().getAutoCommit() ?
                 getConnection().getBlockingStub().execute(ExecuteConfig.newBuilder()
                         .setQuery(sql)
-                        .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
+                        .setTimeout(getQueryTimeout())
                         .setConnectionString(getConnection().getDatabaseProxyDataSourceProperties().getUrl())
                         .addAllArgs(paramAsList())
                         .build())
                 : getConnection().getBlockingStub().executeTx(ExecuteTxConfig.newBuilder()
-                .setTransaction(getConnection().getTransaction())
+                .setTransaction(getConnection().getTransaction(true))
                 .setExecuteConfig(ExecuteConfig.newBuilder()
                         .setQuery(sql)
-                        .setTimeout(Optional.ofNullable(getTimeout()).orElse(60_000L))
+                        .setTimeout(getQueryTimeout())
                         .addAllArgs(paramAsList())
                         .build())
                 .build());

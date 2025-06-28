@@ -76,7 +76,7 @@ class TestRepositoryIntTest extends BaseIntTest {
         log.debug("{}", repository.findAll());
 
         log.debug("Read after insert using API");
-        final List<TestBo> apiResponse = restTemplate.exchange("http://localhost:8080/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
+        final List<TestBo> apiResponse = restTemplate.exchange("http://localhost:9091/api/v1/test/list", HttpMethod.GET, new HttpEntity<>(
                 MultiValueMap.fromSingleValue(Map.of("X-Transaction-Id", transactionId))), new ParameterizedTypeReference<List<TestBo>>() {
         }).getBody();
         log.debug("{}", apiResponse);

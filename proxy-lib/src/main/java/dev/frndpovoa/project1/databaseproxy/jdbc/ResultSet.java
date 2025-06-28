@@ -32,6 +32,7 @@ import java.net.URL;
 import java.sql.*;
 import java.sql.Statement;
 import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.Map;
@@ -101,8 +102,8 @@ public class ResultSet implements java.sql.ResultSet {
         log.trace("public void close() throws SQLException {");
         connection.getBlockingStub().closeResultSet(NextConfig.newBuilder()
                 .setQueryResultId(queryResult.getId())
-                .setTransaction(Optional.ofNullable(connection.getTransaction())
-                        .orElseGet(dev.frndpovoa.project1.databaseproxy.proto.Transaction::getDefaultInstance))
+                .setTransaction(Optional.ofNullable(connection.getTransaction(false))
+                        .orElseGet(Transaction::getDefaultInstance))
                 .build());
     }
 
@@ -886,7 +887,10 @@ public class ResultSet implements java.sql.ResultSet {
         return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
                 .filter(text -> !text.trim().isEmpty())
                 .map(text -> OffsetDateTime.parse(text, DateTimeFormatter.ISO_OFFSET_DATE_TIME))
-                .map(OffsetDateTime::toInstant)
+                .map(odt -> Optional.ofNullable(cal)
+                        .map(calendar -> odt.atZoneSameInstant(calendar.getTimeZone().toZoneId()))
+                        .orElse(odt.toZonedDateTime()))
+                .map(ZonedDateTime::toInstant)
                 .map(Timestamp::from)
                 .orElse(null);
     }

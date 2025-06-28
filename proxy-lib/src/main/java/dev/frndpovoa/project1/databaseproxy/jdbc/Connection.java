@@ -9,9 +9,9 @@ package dev.frndpovoa.project1.databaseproxy.jdbc;
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,6 +24,7 @@ import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyDataSourceProperties;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyProperties;
 import dev.frndpovoa.project1.databaseproxy.postgresql.PgDatabaseMetaData;
+import dev.frndpovoa.project1.databaseproxy.proto.BeginTransactionConfig;
 import dev.frndpovoa.project1.databaseproxy.proto.DatabaseProxyGrpc;
 import dev.frndpovoa.project1.databaseproxy.proto.Empty;
 import dev.frndpovoa.project1.databaseproxy.proto.Transaction;
@@ -50,6 +51,7 @@ public class Connection implements java.sql.Connection {
     private final DatabaseProxyGrpc.DatabaseProxyBlockingStub blockingStub;
     private final DatabaseProxyDataSourceProperties databaseProxyDataSourceProperties;
     private final Pattern transactionIdPattern = Pattern.compile("^(.+?)@(.+)$");
+    private final Integer defaultQueryTimeout = 60_000;
     private boolean autoCommit = true;
     private boolean closed = false;
     private boolean readOnly = false;
@@ -58,13 +60,26 @@ public class Connection implements java.sql.Connection {
     private final Stack<Transaction> transactions = new Stack<>();
 
     public String getTransactionId() {
-        return Optional.ofNullable(getTransaction())
+        return Optional.ofNullable(getTransaction(true))
                 .map(transaction -> transaction.getId() + "@" + transaction.getNode())
                 .orElse(null);
     }
 
-    public Transaction getTransaction() {
-        return transactions.isEmpty() ? null : transactions.peek();
+    public Transaction getTransaction(final boolean create) {
+        if (transactions.isEmpty()) {
+            if (create) {
+                final Transaction transaction = blockingStub
+                        .beginTransaction(BeginTransactionConfig.newBuilder()
+                                .setConnectionString(databaseProxyDataSourceProperties.getUrl())
+                                .setTimeout(defaultQueryTimeout)
+                                .setReadOnly(readOnly)
+                                .build());
+                pushTransaction(transaction);
+            } else {
+                return null;
+            }
+        }
+        return transactions.peek();
     }
 
     public void pushTransaction(final Transaction transaction) {
@@ -108,12 +123,12 @@ public class Connection implements java.sql.Connection {
 
     @Override
     public Statement createStatement() throws SQLException {
-        return new Statement();
+        return new Statement(defaultQueryTimeout);
     }
 
     @Override
     public PreparedStatement prepareStatement(final String sql) throws SQLException {
-        return new PreparedStatement(sql);
+        return new PreparedStatement(defaultQueryTimeout, sql);
     }
 
     @Override
@@ -139,19 +154,21 @@ public class Connection implements java.sql.Connection {
     @Override
     public void commit() throws SQLException {
         log.debug("commit({})", id);
-        if (getTransaction().getStatus() == Transaction.Status.ACTIVE) {
-            getBlockingStub().commitTransaction(getTransaction());
+        final Transaction transaction = getTransaction(false);
+        if (transaction.getStatus() == Transaction.Status.ACTIVE) {
+            getBlockingStub().commitTransaction(transaction);
         }
-        popTransaction(getTransaction());
+        popTransaction(transaction);
     }
 
     @Override
     public void rollback() throws SQLException {
         log.debug("rollback({})", id);
-        if (getTransaction().getStatus() == Transaction.Status.ACTIVE) {
-            getBlockingStub().rollbackTransaction(getTransaction());
+        final Transaction transaction = getTransaction(false);
+        if (transaction.getStatus() == Transaction.Status.ACTIVE) {
+            getBlockingStub().rollbackTransaction(transaction);
         }
-        popTransaction(getTransaction());
+        popTransaction(transaction);
     }
 
     @Override

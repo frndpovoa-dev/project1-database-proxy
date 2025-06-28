@@ -9,9 +9,9 @@ package dev.frndpovoa.project1.databaseproxy.jdbc;
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -34,39 +34,24 @@ import java.util.Optional;
 @Setter
 @RequiredArgsConstructor
 public class Statement implements java.sql.Statement {
+    private final Integer defaultQueryTimeout;
+    private Integer queryTimeout;
     private ResultSet resultSet;
-    private Long timeout = 60_000L;
-
-    protected void beginTransaction(
-            final Connection connection
-    ) throws SQLException {
-        if (!connection.getAutoCommit() && connection.getTransaction() == null) {
-            final Transaction transaction = connection.getBlockingStub()
-                    .beginTransaction(BeginTransactionConfig.newBuilder()
-                            .setConnectionString(connection.getDatabaseProxyDataSourceProperties().getUrl())
-                            .setTimeout(timeout)
-                            .setReadOnly(connection.isReadOnly())
-                            .build());
-            connection.pushTransaction(transaction);
-        }
-    }
 
     @Override
     public ResultSet executeQuery(final String sql) throws SQLException {
         final Connection connection = ConnectionHolder.getConnection();
-        beginTransaction(connection);
-
-        final QueryResult result = connection.getTransaction() == null ?
+        final QueryResult result = connection.getAutoCommit() ?
                 connection.getBlockingStub().query(QueryConfig.newBuilder()
                         .setQuery(sql)
-                        .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
+                        .setTimeout(getQueryTimeout())
                         .setConnectionString(connection.getDatabaseProxyDataSourceProperties().getUrl())
                         .build())
                 : connection.getBlockingStub().queryTx(QueryTxConfig.newBuilder()
-                .setTransaction(connection.getTransaction())
+                .setTransaction(connection.getTransaction(true))
                 .setQueryConfig(QueryConfig.newBuilder()
                         .setQuery(sql)
-                        .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
+                        .setTimeout(getQueryTimeout())
                         .build())
                 .build());
         this.resultSet = new ResultSet(
@@ -80,19 +65,17 @@ public class Statement implements java.sql.Statement {
     @Override
     public int executeUpdate(final String sql) throws SQLException {
         final Connection connection = ConnectionHolder.getConnection();
-        beginTransaction(connection);
-
-        final ExecuteResult result = connection.getTransaction() == null ?
+        final ExecuteResult result = connection.getAutoCommit() ?
                 connection.getBlockingStub().execute(ExecuteConfig.newBuilder()
                         .setQuery(sql)
-                        .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
+                        .setTimeout(getQueryTimeout())
                         .setConnectionString(connection.getDatabaseProxyDataSourceProperties().getUrl())
                         .build())
                 : connection.getBlockingStub().executeTx(ExecuteTxConfig.newBuilder()
-                .setTransaction(connection.getTransaction())
+                .setTransaction(connection.getTransaction(true))
                 .setExecuteConfig(ExecuteConfig.newBuilder()
                         .setQuery(sql)
-                        .setTimeout(Optional.ofNullable(timeout).orElse(60_000L))
+                        .setTimeout(getQueryTimeout())
                         .build())
                 .build());
         return result.getRowsAffected();
@@ -131,12 +114,12 @@ public class Statement implements java.sql.Statement {
 
     @Override
     public int getQueryTimeout() throws SQLException {
-        return Optional.ofNullable(timeout).orElse(60_000L).intValue();
+        return Optional.ofNullable(queryTimeout).orElse(defaultQueryTimeout);
     }
 
     @Override
     public void setQueryTimeout(int seconds) throws SQLException {
-        this.timeout = seconds * 1000L;
+        this.queryTimeout = seconds * 1000;
     }
 
     @Override
