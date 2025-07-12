@@ -175,6 +175,7 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
             int timeout
     ) {
         Transaction transaction = databaseProxyServiceClient.beginTransaction(BeginTransactionConfig.newBuilder()
+                .setConnectionString(dataSourceProperties.getUrl())
                 .setTimeout(timeout)
                 .build());
         assertThat(transaction)
@@ -188,6 +189,7 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
             String sql
     ) {
         ExecuteResult ddlResult = databaseProxyServiceClient.execute(ExecuteConfig.newBuilder()
+                .setConnectionString(dataSourceProperties.getUrl())
                 .setTimeout(100)
                 .setQuery(sql)
                 .build());
@@ -270,6 +272,7 @@ class DatabaseProxyServiceIntTest extends BaseIntTest {
             List<Row> expectedResults
     ) {
         QueryResult queryResult = databaseProxyServiceClient.query(QueryConfig.newBuilder()
+                .setConnectionString(dataSourceProperties.getUrl())
                 .setTimeout(2_000)
                 .setQuery(sql)
                 .addAllArgs(args)

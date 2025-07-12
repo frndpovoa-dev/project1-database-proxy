@@ -1,6 +1,13 @@
+_pod_name: localhost
+
 app:
   grpc:
     port: 9090
+  db-proxy:
+    hostname: localhost
+    port: 9090
+  db-proxy-datasource:
+    url: jdbc:postgresql://localhost:5432/postgres?user=postgres&password=postgres
 
 server:
   port: 8080

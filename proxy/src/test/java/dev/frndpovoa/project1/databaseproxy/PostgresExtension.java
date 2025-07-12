@@ -27,13 +27,21 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 public class PostgresExtension implements BeforeAllCallback {
+    private static final AtomicBoolean started = new AtomicBoolean(false);
     private GenericContainer<?> postgresql;
 
     @Override
     public void beforeAll(final ExtensionContext context) throws Exception {
+        if (started.get()) {
+            return;
+        } else {
+            started.set(true);
+        }
+
         final String database = "postgres";
         final int port = 5432;
         final String username = "postgres";

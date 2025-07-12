@@ -40,19 +40,20 @@ public class GrpcServer implements InitializingBean, DisposableBean {
 
     @Override
     public void destroy() throws Exception {
-        server.shutdown();
-        if (!server.awaitTermination(20, TimeUnit.SECONDS)) {
-            server.shutdownNow();
-            server.awaitTermination(5, TimeUnit.SECONDS);
+        if (!server.shutdown().awaitTermination(20, TimeUnit.SECONDS)) {
+            server.shutdownNow().awaitTermination(5, TimeUnit.SECONDS);
         }
+        this.server = null;
     }
 
     @Override
     public void afterPropertiesSet() throws Exception {
-        this.server = ServerBuilder
-                .forPort(grpcProperties.getPort())
-                .addService(databaseProxyService)
-                .build()
-                .start();
+        if (server == null) {
+            this.server = ServerBuilder
+                    .forPort(grpcProperties.getPort())
+                    .addService(databaseProxyService)
+                    .build()
+                    .start();
+        }
     }
 }
