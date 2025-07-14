@@ -18,7 +18,7 @@
         <org.mapstruct_mapstruct.version>1.6.3</org.mapstruct_mapstruct.version>
         <org.postgresql_postgresql.version>42.7.5</org.postgresql_postgresql.version>
         <org.projectlombok_lombok.version>1.18.36</org.projectlombok_lombok.version>
-        <spring-boot.version>3.5.0</spring-boot.version>
+        <spring-boot.version>3.5.3</spring-boot.version>
     </properties>
     <dependencyManagement>
         <dependencies>

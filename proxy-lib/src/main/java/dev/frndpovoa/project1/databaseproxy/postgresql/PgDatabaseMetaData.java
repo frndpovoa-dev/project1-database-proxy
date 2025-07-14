@@ -236,8 +236,12 @@ public class PgDatabaseMetaData implements java.sql.DatabaseMetaData {
                 }
                 keywords = rs.getString(1);
             } finally {
-                rs.close();
-                stmt.close();
+                if (rs != null) {
+                    rs.close();
+                }
+                if (stmt != null) {
+                    stmt.close();
+                }
             }
 
             this.keywords = keywords;
