@@ -41,6 +41,7 @@ message Transaction {
     COMMITTED = 2;
     ROLLED_BACK = 3;
     UNKNOWN = 4;
+    JOINED = 5;
   }
 }
 

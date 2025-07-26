@@ -26,6 +26,7 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.openjpa.lib.jdbc.SQLFormatter;
 import org.slf4j.MDC;
@@ -125,6 +126,8 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                     .setStatus(committed ? Transaction.Status.COMMITTED : Transaction.Status.UNKNOWN)
                     .build();
 
+            ops.setTransaction(result);
+
             log.debug("commitTransaction() -> {}", result.getStatus());
 
             responseObserver.onNext(result);
@@ -144,29 +147,23 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
         try {
             Transaction result = null;
 
-            final Optional<DatabaseOperation> opsOptional = getDatabaseOperationByTransaction(transaction);
-            if (opsOptional.isPresent()) {
+            final DatabaseOperation ops = getDatabaseOperationByTransaction(transaction)
+                    .orElseThrow(() -> new IllegalArgumentException("Transaction not found"));
 
-
-                final DatabaseOperation ops = opsOptional.get();
-
-                if (ops.getTransaction().getStatus() != Transaction.Status.ACTIVE) {
-                    responseObserver.onError(Status.INVALID_ARGUMENT
-                            .withDescription("Transaction is not active")
-                            .asRuntimeException());
-                    return;
-                }
-
-                final boolean rolledBack = ops.rollbackTransaction();
-
-                result = ops.getTransaction().toBuilder()
-                        .setStatus(rolledBack ? Transaction.Status.ROLLED_BACK : Transaction.Status.UNKNOWN)
-                        .build();
-            } else {
-                result = Transaction.newBuilder()
-                        .setStatus(Transaction.Status.UNKNOWN)
-                        .build();
+            if (ops.getTransaction().getStatus() != Transaction.Status.ACTIVE) {
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                        .withDescription("Transaction is not active")
+                        .asRuntimeException());
+                return;
             }
+
+            final boolean rolledBack = ops.rollbackTransaction();
+
+            result = ops.getTransaction().toBuilder()
+                    .setStatus(rolledBack ? Transaction.Status.ROLLED_BACK : Transaction.Status.UNKNOWN)
+                    .build();
+
+            ops.setTransaction(result);
 
             log.debug("rollbackTransaction() -> {}", result.getStatus());
 
@@ -422,6 +419,7 @@ class DatabaseOperation {
     private final String connectionString;
     private final SQLFormatter sqlFormatter;
     @Getter
+    @Setter
     private Transaction transaction;
 
     boolean openConnection() {

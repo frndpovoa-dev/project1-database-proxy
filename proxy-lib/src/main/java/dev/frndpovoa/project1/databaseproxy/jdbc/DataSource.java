@@ -20,7 +20,6 @@ package dev.frndpovoa.project1.databaseproxy.jdbc;
  * #L%
  */
 
-import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyDataSourceProperties;
 import dev.frndpovoa.project1.databaseproxy.config.DatabaseProxyProperties;
 import lombok.RequiredArgsConstructor;
@@ -34,17 +33,15 @@ import java.util.logging.Logger;
 @Slf4j
 @RequiredArgsConstructor
 public class DataSource implements javax.sql.DataSource {
+    private static final Logger LOGGER = Logger.getLogger(DataSource.class.getName());
     private final DatabaseProxyDataSourceProperties databaseProxyDataSourceProperties;
     private final DatabaseProxyProperties databaseProxyProperties;
     private PrintWriter printWriter;
     private int loginTimeout;
 
-
     @Override
     public Connection getConnection() throws SQLException {
-        final Connection connection = new Connection(databaseProxyProperties, databaseProxyDataSourceProperties);
-        ConnectionHolder.pushConnection(connection);
-        return connection;
+        return new Connection(databaseProxyProperties, databaseProxyDataSourceProperties);
     }
 
     @Override
@@ -74,7 +71,7 @@ public class DataSource implements javax.sql.DataSource {
 
     @Override
     public Logger getParentLogger() throws SQLFeatureNotSupportedException {
-        return Logger.getLogger(DataSource.class.getName());
+        return LOGGER;
     }
 
     @Override
