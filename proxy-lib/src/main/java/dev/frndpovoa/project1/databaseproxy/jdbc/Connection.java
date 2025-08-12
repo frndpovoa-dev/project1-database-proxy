@@ -66,23 +66,21 @@ public class Connection implements java.sql.Connection {
     }
 
     public Transaction getTransaction(final boolean create) {
-        if (transactions.isEmpty()) {
-            if (create) {
+        if (create) {
+            final List<Transaction.Status> activeTransactionStatuses = List.of(
+                    Transaction.Status.ACTIVE,
+                    Transaction.Status.JOINED);
+            new ArrayList<>(transactions).stream()
+                    .filter(existingTransaction -> !activeTransactionStatuses.contains(existingTransaction.getStatus()))
+                    .forEach(this::popTransaction);
+            if (transactions.isEmpty()) {
                 final Transaction transaction = blockingStub
                         .beginTransaction(BeginTransactionConfig.newBuilder()
                                 .setConnectionString(databaseProxyDataSourceProperties.getUrl())
                                 .setTimeout(defaultQueryTimeout)
                                 .setReadOnly(readOnly)
                                 .build());
-                final List<Transaction.Status> activeTransactionStatuses = List.of(
-                        Transaction.Status.ACTIVE,
-                        Transaction.Status.JOINED);
-                new ArrayList<>(transactions).stream()
-                        .filter(existingTransaction -> !activeTransactionStatuses.contains(existingTransaction.getStatus()))
-                        .forEach(this::popTransaction);
                 pushTransaction(transaction);
-            } else {
-                return null;
             }
         }
         return transactions.peek();
@@ -164,21 +162,29 @@ public class Connection implements java.sql.Connection {
 
     @Override
     public void commit() throws SQLException {
-        final Transaction transaction = getTransaction(false);
-        log.debug("commit(conn: {}, tx: {})", id, transaction.getId());
-        if (transaction.getStatus() == Transaction.Status.ACTIVE) {
-            final Transaction newTransaction = getBlockingStub().commitTransaction(transaction);
-            replaceTransaction(transaction, newTransaction);
+        if (readOnly) {
+            log.debug("commit skipped (conn: {})", id);
+        } else {
+            final Transaction transaction = getTransaction(false);
+            log.debug("commit(conn: {}, tx: {})", id, transaction.getId());
+            if (transaction.getStatus() == Transaction.Status.ACTIVE) {
+                final Transaction newTransaction = getBlockingStub().commitTransaction(transaction);
+                replaceTransaction(transaction, newTransaction);
+            }
         }
     }
 
     @Override
     public void rollback() throws SQLException {
-        final Transaction transaction = getTransaction(false);
-        log.debug("rollback(conn: {}, tx: {})", id, transaction.getId());
-        if (transaction.getStatus() == Transaction.Status.ACTIVE) {
-            final Transaction newTransaction = getBlockingStub().rollbackTransaction(transaction);
-            replaceTransaction(transaction, newTransaction);
+        if (readOnly) {
+            log.debug("rollback skipped (conn: {})", id);
+        } else {
+            final Transaction transaction = getTransaction(false);
+            log.debug("rollback(conn: {}, tx: {})", id, transaction.getId());
+            if (transaction.getStatus() == Transaction.Status.ACTIVE) {
+                final Transaction newTransaction = getBlockingStub().rollbackTransaction(transaction);
+                replaceTransaction(transaction, newTransaction);
+            }
         }
     }
 

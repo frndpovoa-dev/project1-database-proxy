@@ -23,6 +23,7 @@ package dev.frndpovoa.project1.databaseproxy.test.controller;
 import dev.frndpovoa.project1.databaseproxy.ConnectionHolder;
 import dev.frndpovoa.project1.databaseproxy.test.bo.TestBo;
 import dev.frndpovoa.project1.databaseproxy.test.repository.TestRepository;
+import dev.frndpovoa.project1.databaseproxy.test.service.TestService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,7 +37,7 @@ import java.util.List;
 @Transactional(timeout = 60_000)
 @RequiredArgsConstructor
 public class TestController {
-//    private final TestService service;
+    private final TestService service;
     private final TestRepository repository;
 
     @GetMapping(path = "/list")
@@ -54,7 +55,7 @@ public class TestController {
     ) throws Exception {
         ConnectionHolder.getConnection().joinSharedTransaction(transactionId);
         repository.save(testBo);
-//        service.save(testBo);
+        service.save(testBo);
         return testBo;
     }
 }

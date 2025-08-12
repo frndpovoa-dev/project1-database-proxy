@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
+import static java.util.function.Predicate.not;
 
 @Slf4j
 @Service
@@ -195,14 +196,14 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                     .transaction(transaction)
                     .build();
 
-            final boolean dml = config.getQuery()
+            final boolean modifying = config.getQuery()
                     .matches("(?i)^(insert|update|delete|merge)\\s+.*");
 
             ExecuteResult result;
             try {
                 ops.openConnection();
                 try {
-                    if (dml) {
+                    if (modifying) {
                         ops.beginTransaction(BeginTransactionConfig.newBuilder()
                                 .setTimeout(config.getTimeout())
                                 .setReadOnly(false)
@@ -210,7 +211,7 @@ public class DatabaseProxyService extends DatabaseProxyGrpc.DatabaseProxyImplBas
                     }
                     result = ops.execute(config);
                 } finally {
-                    if (dml) {
+                    if (modifying) {
                         ops.commitTransaction();
                     }
                 }
@@ -733,8 +734,18 @@ class DatabaseOperation {
                 });
     }
 
+    Boolean isReadOnly(final Connection conn) {
+        try {
+            return conn != null && conn.isReadOnly();
+        } catch (final SQLException e) {
+            log.error(e.getMessage(), e);
+            return null;
+        }
+    }
+
     Optional<Boolean> commit(final Connection conn) {
         return Optional.ofNullable(conn)
+                .filter(not(this::isReadOnly))
                 .map(it -> {
                     try {
                         it.commit();
@@ -748,6 +759,7 @@ class DatabaseOperation {
 
     Optional<Boolean> rollback(final Connection conn) {
         return Optional.ofNullable(conn)
+                .filter(not(this::isReadOnly))
                 .map(it -> {
                     try {
                         it.rollback();
