@@ -122,7 +122,9 @@ public class ResultSet implements java.sql.ResultSet {
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
         log.trace("public boolean getBoolean(int columnIndex) throws SQLException {");
-        return Boolean.parseBoolean(getCurrentRowColValueDataAsString(columnIndex));
+        return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
+                .map(Boolean::parseBoolean)
+                .orElse(false);
     }
 
     @Override
@@ -134,37 +136,49 @@ public class ResultSet implements java.sql.ResultSet {
     @Override
     public short getShort(int columnIndex) throws SQLException {
         log.trace("public short getShort(int columnIndex) throws SQLException {");
-        return Short.parseShort(getCurrentRowColValueDataAsString(columnIndex));
+        return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
+                .map(Short::parseShort)
+                .orElse((short) 0);
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
         log.trace("public int getInt(int columnIndex) throws SQLException {");
-        return Integer.parseInt(getCurrentRowColValueDataAsString(columnIndex));
+        return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
+                .map(Integer::parseInt)
+                .orElse(0);
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
         log.trace("public long getLong(int columnIndex) throws SQLException {");
-        return Long.parseLong(getCurrentRowColValueDataAsString(columnIndex));
+        return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
+                .map(Long::parseLong)
+                .orElse(0L);
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
         log.trace("public float getFloat(int columnIndex) throws SQLException {");
-        return Float.parseFloat(getCurrentRowColValueDataAsString(columnIndex));
+        return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
+                .map(Float::parseFloat)
+                .orElse(0.0F);
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
         log.trace("public double getDouble(int columnIndex) throws SQLException {");
-        return Double.parseDouble(getCurrentRowColValueDataAsString(columnIndex));
+        return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
+                .map(Double::parseDouble)
+                .orElse(0.0);
     }
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
         log.trace("public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {");
-        return BigDecimal.valueOf(Long.parseLong(getCurrentRowColValueDataAsString(columnIndex)), scale);
+        return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
+                .map(BigDecimal::new)
+                .orElse(null);
     }
 
     @Override
@@ -176,19 +190,25 @@ public class ResultSet implements java.sql.ResultSet {
     @Override
     public Date getDate(int columnIndex) throws SQLException {
         log.trace("public Date getDate(int columnIndex) throws SQLException {");
-        return Date.valueOf(getCurrentRowColValueDataAsString(columnIndex));
+        return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
+                .map(Date::valueOf)
+                .orElse(null);
     }
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
         log.trace("public Time getTime(int columnIndex) throws SQLException {");
-        return Time.valueOf(getCurrentRowColValueDataAsString(columnIndex));
+        return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
+                .map(Time::valueOf)
+                .orElse(null);
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
         log.trace("public Timestamp getTimestamp(int columnIndex) throws SQLException {");
-        return Timestamp.valueOf(getCurrentRowColValueDataAsString(columnIndex));
+        return Optional.ofNullable(getCurrentRowColValueDataAsString(columnIndex))
+                .map(Timestamp::valueOf)
+                .orElse(null);
     }
 
     @Override
@@ -889,7 +909,7 @@ public class ResultSet implements java.sql.ResultSet {
                 .map(text -> OffsetDateTime.parse(text, DateTimeFormatter.ISO_OFFSET_DATE_TIME))
                 .map(odt -> Optional.ofNullable(cal)
                         .map(calendar -> odt.atZoneSameInstant(calendar.getTimeZone().toZoneId()))
-                        .orElse(odt.toZonedDateTime()))
+                        .orElseGet(() -> odt.toZonedDateTime()))
                 .map(ZonedDateTime::toInstant)
                 .map(Timestamp::from)
                 .orElse(null);

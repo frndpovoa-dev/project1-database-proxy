@@ -43,6 +43,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
@@ -771,94 +773,124 @@ class DatabaseOperation {
                 });
     }
 
+    private Value nullValue() {
+        return Value.newBuilder()
+                .setCode(ValueCode.NULL)
+                .setData(ValueNull.newBuilder()
+                        .build()
+                        .toByteString()
+                )
+                .build();
+    }
+
     private Value getSqlArg(final ResultSet rs, final int i) {
+        final Predicate<Object> wasNotNull = ignored -> {
+            try {
+                return !rs.wasNull();
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        };
         try {
             switch (JDBCType.valueOf(rs.getMetaData().getColumnType(i))) {
                 case BIGINT -> {
-                    return Value.newBuilder()
-                            .setCode(ValueCode.INT64)
-                            .setData(ValueInt64.newBuilder()
-                                    .setValue(rs.getLong(i))
-                                    .build()
-                                    .toByteString()
-                            )
-                            .build();
-
+                    return Optional.of(rs.getLong(i))
+                            .filter(wasNotNull)
+                            .map(v -> Value.newBuilder()
+                                    .setCode(ValueCode.INT64)
+                                    .setData(ValueInt64.newBuilder()
+                                            .setValue(v)
+                                            .build()
+                                            .toByteString()
+                                    )
+                                    .build())
+                            .orElseGet(this::nullValue);
                 }
                 case BOOLEAN, BIT -> {
-                    return Value.newBuilder()
-                            .setCode(ValueCode.BOOL)
-                            .setData(ValueBool.newBuilder()
-                                    .setValue(rs.getBoolean(i))
-                                    .build()
-                                    .toByteString()
-                            )
-                            .build();
+                    return Optional.of(rs.getBoolean(i))
+                            .filter(wasNotNull)
+                            .map(v -> Value.newBuilder()
+                                    .setCode(ValueCode.BOOL)
+                                    .setData(ValueBool.newBuilder()
+                                            .setValue(v)
+                                            .build()
+                                            .toByteString()
+                                    )
+                                    .build())
+                            .orElseGet(this::nullValue);
 
                 }
                 case DATE -> {
-                    return Value.newBuilder()
-                            .setCode(ValueCode.TIME)
-                            .setData(Optional.ofNullable(rs.getDate(i))
-                                    .map(it -> OffsetDateTime.ofInstant(it.toInstant(), ZoneId.systemDefault()))
-                                    .map(it -> ValueTime.newBuilder().setValue(it.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)))
-                                    .orElseGet(ValueTime::newBuilder)
-                                    .build()
-                                    .toByteString()
-                            )
-                            .build();
+                    return Optional.ofNullable(rs.getDate(i))
+                            .filter(wasNotNull)
+                            .map(v -> Value.newBuilder()
+                                    .setCode(ValueCode.TIME)
+                                    .setData(ValueTime.newBuilder()
+                                            .setValue(OffsetDateTime
+                                                    .ofInstant(v.toInstant(), ZoneId.systemDefault())
+                                                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
+                                            .build()
+                                            .toByteString()
+                                    )
+                                    .build())
+                            .orElseGet(this::nullValue);
                 }
                 case NUMERIC, DOUBLE -> {
-                    return Value.newBuilder()
-                            .setCode(ValueCode.FLOAT64)
-                            .setData(ValueFloat64.newBuilder()
-                                    .setValue(rs.getDouble(i))
-                                    .build()
-                                    .toByteString()
-                            )
-                            .build();
+                    return Optional.of(rs.getDouble(i))
+                            .filter(wasNotNull)
+                            .map(v -> Value.newBuilder()
+                                    .setCode(ValueCode.FLOAT64)
+                                    .setData(ValueFloat64.newBuilder()
+                                            .setValue(v)
+                                            .build()
+                                            .toByteString()
+                                    )
+                                    .build())
+                            .orElseGet(this::nullValue);
                 }
                 case SMALLINT, INTEGER -> {
-                    return Value.newBuilder()
-                            .setCode(ValueCode.INT32)
-                            .setData(ValueInt32.newBuilder()
-                                    .setValue(rs.getInt(i))
-                                    .build()
-                                    .toByteString()
-                            )
-                            .build();
+                    return Optional.of(rs.getInt(i))
+                            .filter(wasNotNull)
+                            .map(v -> Value.newBuilder()
+                                    .setCode(ValueCode.INT32)
+                                    .setData(ValueInt32.newBuilder()
+                                            .setValue(v)
+                                            .build()
+                                            .toByteString()
+                                    )
+                                    .build())
+                            .orElseGet(this::nullValue);
                 }
                 case TIMESTAMP -> {
-                    return Value.newBuilder()
-                            .setCode(ValueCode.TIME)
-                            .setData(Optional.ofNullable(rs.getTimestamp(i))
-                                    .map(it -> OffsetDateTime.ofInstant(it.toInstant(), ZoneId.systemDefault()))
-                                    .map(it -> ValueTime.newBuilder().setValue(it.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)))
-                                    .orElseGet(ValueTime::newBuilder)
-                                    .build()
-                                    .toByteString()
-                            )
-                            .build();
+                    return Optional.ofNullable(rs.getTimestamp(i))
+                            .filter(wasNotNull)
+                            .map(v -> Value.newBuilder()
+                                    .setCode(ValueCode.TIME)
+                                    .setData(ValueTime.newBuilder()
+                                            .setValue(OffsetDateTime
+                                                    .ofInstant(v.toInstant(), ZoneId.systemDefault())
+                                                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
+                                            .build()
+                                            .toByteString()
+                                    )
+                                    .build())
+                            .orElseGet(this::nullValue);
                 }
                 case VARCHAR -> {
-                    return Value.newBuilder()
-                            .setCode(ValueCode.STRING)
-                            .setData(Optional.ofNullable(rs.getString(i))
-                                    .map(it -> ValueString.newBuilder().setValue(it))
-                                    .orElseGet(ValueString::newBuilder)
-                                    .build()
-                                    .toByteString()
-                            )
-                            .build();
+                    return Optional.ofNullable(rs.getString(i))
+                            .filter(wasNotNull)
+                            .map(v -> Value.newBuilder()
+                                    .setCode(ValueCode.STRING)
+                                    .setData(ValueString.newBuilder()
+                                            .setValue(v)
+                                            .build()
+                                            .toByteString()
+                                    )
+                                    .build())
+                            .orElseGet(this::nullValue);
                 }
                 case NULL -> {
-                    return Value.newBuilder()
-                            .setCode(ValueCode.NULL)
-                            .setData(ValueNull.newBuilder()
-                                    .build()
-                                    .toByteString()
-                            )
-                            .build();
+                    return nullValue();
                 }
                 default -> {
                     return null;
@@ -872,29 +904,17 @@ class DatabaseOperation {
     private void setSqlArg(final PreparedStatement stmt, final int i, final Value value) {
         try {
             switch (value.getCode()) {
-                case INT64 -> {
-                    stmt.setLong(i, ValueInt64.parseFrom(value.getData()).getValue());
-                }
-                case FLOAT64 -> {
-                    stmt.setDouble(i, ValueFloat64.parseFrom(value.getData()).getValue());
-                }
-                case BOOL -> {
-                    stmt.setBoolean(i, ValueBool.parseFrom(value.getData()).getValue());
-                }
-                case STRING -> {
-                    stmt.setString(i, ValueString.parseFrom(value.getData()).getValue());
-                }
+                case INT64 -> stmt.setLong(i, ValueInt64.parseFrom(value.getData()).getValue());
+                case FLOAT64 -> stmt.setDouble(i, ValueFloat64.parseFrom(value.getData()).getValue());
+                case BOOL -> stmt.setBoolean(i, ValueBool.parseFrom(value.getData()).getValue());
+                case STRING -> stmt.setString(i, ValueString.parseFrom(value.getData()).getValue());
                 case TIME -> {
                     final String s = ValueTime.parseFrom(value.getData()).getValue();
                     final OffsetDateTime odt = OffsetDateTime.parse(s, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
                     stmt.setTimestamp(i, new Timestamp(odt.toInstant().toEpochMilli()));
                 }
-                case NULL -> {
-                    stmt.setNull(i, Types.NULL);
-                }
-                default -> {
-                    stmt.setNull(i, Types.NULL);
-                }
+                case NULL -> stmt.setNull(i, Types.NULL);
+                default -> stmt.setNull(i, Types.NULL);
             }
         } catch (final InvalidProtocolBufferException | SQLException e) {
             throw new RuntimeException(e);
