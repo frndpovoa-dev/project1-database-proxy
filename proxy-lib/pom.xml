@@ -9,11 +9,10 @@
     <properties>
         <revision>0.0.1-SNAPSHOT</revision>
         <file.encoding>UTF-8</file.encoding>
-        <java.version>21</java.version>
+        <java.version>24</java.version>
         <project.build.sourceEncoding>${file.encoding}</project.build.sourceEncoding>
-        <com.google.protobuf_protoc.version>4.31.1</com.google.protobuf_protoc.version>
+        <com.google.protobuf_protoc.version>4.32.0</com.google.protobuf_protoc.version>
         <io.grpc_grpc.version>1.74.0</io.grpc_grpc.version>
-        <org.apache.commons_commons-lang3.version>3.18.0</org.apache.commons_commons-lang3.version>
         <org.awaitility_awaitility.version>4.3.0</org.awaitility_awaitility.version>
         <org.mapstruct_mapstruct.version>1.6.3</org.mapstruct_mapstruct.version>
         <org.postgresql_postgresql.version>42.7.7</org.postgresql_postgresql.version>
@@ -182,12 +181,10 @@
                     <pluginId>grpc-java</pluginId>
                     <pluginArtifact>io.grpc:protoc-gen-grpc-java:${io.grpc_grpc.version}:exe:${os.detected.classifier}
                     </pluginArtifact>
-                    <outputDirectory>${basedir}/target/generated-sources/protobuf/java</outputDirectory>
-                    <clearOutputDirectory>false</clearOutputDirectory>
                 </configuration>
                 <executions>
                     <execution>
-                        <phase>compile</phase>
+                        <phase>generate-sources</phase>
                         <goals>
                             <goal>compile</goal>
                             <goal>compile-custom</goal>

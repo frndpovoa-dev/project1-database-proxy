@@ -10,7 +10,7 @@ while getopts "v:i:" opt; do
 done
 
 command="true"
-command="$command && podman pull gcr.io/distroless/java21-debian12:nonroot "
+command="$command && podman pull bellsoft/liberica-runtime-container:jre-24-musl "
 command="$command && podman build -f Dockerfile -t $image:$version . "
 command="$command && podman push $image:$version "
 
