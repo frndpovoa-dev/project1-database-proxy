@@ -25,17 +25,17 @@ import dev.frndpovoa.project1.databaseproxy.jdbc.Connection;
 import java.util.Stack;
 
 public class ConnectionHolder {
-    private static final Stack<Connection> connections = new Stack<>();
+    private static final ThreadLocal<Stack<Connection>> connections = ThreadLocal.withInitial(Stack::new);
 
     public static Connection getConnection() {
-        return connections.isEmpty() ? null : connections.peek();
+        return connections.get().isEmpty() ? null : connections.get().peek();
     }
 
     public static void pushConnection(final Connection connection) {
-        connections.push(connection);
+        connections.get().push(connection);
     }
 
     public static boolean popConnection(final Connection connection) {
-        return connections.remove(connection);
+        return connections.get().remove(connection);
     }
 }

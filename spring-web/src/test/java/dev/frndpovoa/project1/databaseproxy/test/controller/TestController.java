@@ -34,7 +34,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping(path = "/api/v1/test")
-@Transactional(timeout = 60_000)
+@Transactional(timeout = 60)
 @RequiredArgsConstructor
 public class TestController {
     private final TestService service;
