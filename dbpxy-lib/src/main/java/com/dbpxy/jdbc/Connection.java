@@ -181,13 +181,17 @@ public class Connection implements java.sql.Connection {
         return autoCommit;
     }
 
+    private String getMaskedId(final String id) {
+        return id.replaceFirst("^(.{32}).*$", "$1");
+    }
+
     @Override
     public void commit() throws SQLException {
         if (readOnly) {
             log.debug("commit skipped (conn: {})", id);
         } else {
             final Transaction transaction = getTransaction(false, 0);
-            log.debug("commit(conn: {}, tx: {})", id, transaction.getId());
+            log.debug("commit(conn: {}, tx: {})", id, getMaskedId(transaction.getId()));
             if (transaction.getStatus() == Transaction.Status.ACTIVE) {
                 final Transaction newTransaction = getBlockingStub().commitTransaction(transaction);
                 replaceTransaction(transaction, newTransaction);
@@ -201,7 +205,7 @@ public class Connection implements java.sql.Connection {
             log.debug("rollback skipped (conn: {})", id);
         } else {
             final Transaction transaction = getTransaction(false, 0);
-            log.debug("rollback(conn: {}, tx: {})", id, transaction.getId());
+            log.debug("rollback(conn: {}, tx: {})", id, getMaskedId(transaction.getId()));
             if (transaction.getStatus() == Transaction.Status.ACTIVE) {
                 final Transaction newTransaction = getBlockingStub().rollbackTransaction(transaction);
                 replaceTransaction(transaction, newTransaction);
