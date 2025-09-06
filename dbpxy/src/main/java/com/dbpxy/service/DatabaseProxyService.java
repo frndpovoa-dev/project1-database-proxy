@@ -700,32 +700,34 @@ class DatabaseOperation {
 
     public QueryResult next(final NextConfig config) {
         final CompletableFuture<List<Row>> future = new CompletableFuture<>();
-        final boolean accepted = queryTaskMap.get(config.getQueryResultId()).add(params -> {
-            try {
-                boolean next = true;
-                int rowsFetched = 0;
-                final List<Row> results = new ArrayList<>();
-                while (params.getShouldContinue().get() && next && rowsFetched < params.getRs().getFetchSize()) {
-                    next = params.getRs().next();
-                    if (next) {
-                        rowsFetched++;
-                        results.add(Row.newBuilder()
-                                .addAllCols(IntStream.range(1, params.getRs().getMetaData().getColumnCount() + 1)
-                                        .mapToObj(i -> getSqlArg(params.getRs(), i))
-                                        .toList()
-                                )
-                                .build());
+        final boolean accepted = Optional.ofNullable(queryTaskMap.get(config.getQueryResultId()))
+                .map(queryTaskQueue -> queryTaskQueue.add(params -> {
+                    try {
+                        boolean next = true;
+                        int rowsFetched = 0;
+                        final List<Row> results = new ArrayList<>();
+                        while (params.getShouldContinue().get() && next && rowsFetched < params.getRs().getFetchSize()) {
+                            next = params.getRs().next();
+                            if (next) {
+                                rowsFetched++;
+                                results.add(Row.newBuilder()
+                                        .addAllCols(IntStream.range(1, params.getRs().getMetaData().getColumnCount() + 1)
+                                                .mapToObj(i -> getSqlArg(params.getRs(), i))
+                                                .toList()
+                                        )
+                                        .build());
+                            }
+                        }
+                        if (!next) {
+                            params.getShouldContinue().set(false);
+                        }
+                        future.complete(results);
+                    } catch (final Throwable t) {
+                        log.error(t.getMessage(), t);
+                        future.completeExceptionally(t);
                     }
-                }
-                if (!next) {
-                    params.getShouldContinue().set(false);
-                }
-                future.complete(results);
-            } catch (final Throwable t) {
-                log.error(t.getMessage(), t);
-                future.completeExceptionally(t);
-            }
-        });
+                }))
+                .orElse(false);
         log.debug("next task accepted -> {}", accepted);
         if (accepted) {
             return QueryResult.newBuilder()
@@ -741,10 +743,12 @@ class DatabaseOperation {
 
     public boolean closeResultSet(final NextConfig config) {
         final CompletableFuture<Boolean> future = new CompletableFuture<>();
-        final boolean accepted = queryTaskMap.get(config.getQueryResultId()).add(params -> {
-            params.getShouldContinue().set(false);
-            future.complete(true);
-        });
+        final boolean accepted = Optional.ofNullable(queryTaskMap.get(config.getQueryResultId()))
+                .map(queryTaskQueue -> queryTaskQueue.add(params -> {
+                    params.getShouldContinue().set(false);
+                    future.complete(true);
+                }))
+                .orElse(false);
         log.debug("close result set task accepted -> {}", accepted);
         if (accepted) {
             return future.join();
