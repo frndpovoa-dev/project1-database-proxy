@@ -15,7 +15,7 @@ app:
 server:
   port: 8050
   servlet:
-    context-path: /project1
+    context-path: /
 
 management:
   server:
